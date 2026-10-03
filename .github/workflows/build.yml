@@ -1,0 +1,45 @@
+name: Build and test Beat Flip
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  engine:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure portable engine tests
+        run: cmake -S . -B build -DBEATFLIP_BUILD_PLUGIN=OFF -DCMAKE_BUILD_TYPE=Release
+      - name: Build and test
+        run: |
+          cmake --build build --parallel 2
+          ctest --test-dir build --output-on-failure
+      - name: Address and undefined behavior checks
+        run: |
+          c++ -std=c++17 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -ISource Source/GlitchEngine.cpp Tests/EngineTests.cpp Tests/AllocationGuard.cpp -o build/beatflip_sanitized
+          build/beatflip_sanitized
+  audio-unit:
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build universal Audio Unit and standalone app
+        run: bash scripts/build-macos.sh
+      - name: Install and validate Audio Unit
+        run: |
+          bash scripts/install-au.sh
+          auval -v aufx BtFp Rbjm
+      - name: Package development build
+        run: |
+          mkdir -p dist
+          ditto -c -k --sequesterRsrc --keepParent "build-macos/BeatFlip_artefacts/Release/AU/Beat Flip.component" dist/Beat-Flip-AU-macOS.zip
+          ditto -c -k --sequesterRsrc --keepParent "build-macos/BeatFlip_artefacts/Release/Standalone/Beat Flip.app" dist/Beat-Flip-Standalone-macOS.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Beat-Flip-macOS-development-build
+          path: dist/*.zip
+          if-no-files-found: error
