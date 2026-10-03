@@ -8,9 +8,18 @@
 - The audio callback and pattern changes allocate no memory in the allocation probe.
 - The A/B renderer produces a valid mono 44.1 kHz PCM WAV containing four dry bars and four flipped bars.
 
-## Requires macOS validation
+## Verified on GitHub Actions — October 3, 2026
 
-The AU wrapper, custom editor, and universal macOS bundles have **not** been compiled or run in this preparation environment. The included GitHub Actions macOS job is configured to build them and run `auval`; that workflow has not been executed yet.
+[Build run #2](https://github.com/robathanjames/beat-flip-au/actions/runs/37156414576) passed both jobs:
+
+- Linux behavioral tests and default AddressSanitizer/UndefinedBehaviorSanitizer checks passed.
+- The AU wrapper, custom editor, and standalone app compiled as universal Intel + Apple Silicon macOS bundles.
+- Apple's `auval -v aufx BtFp Rbjm` reported **AU VALIDATION SUCCEEDED** after installation, ad hoc signing, and refreshing AudioComponentRegistrar.
+- The run includes downloadable AU and standalone development ZIPs.
+
+## Still requires a Logic host check
+
+Actual playback, editor interaction, automation, and project recall in Logic have not been tested. AU validation ran on the Intel macOS runner; native Apple Silicon host playback still needs a check.
 
 After a successful AU build, check in Logic:
 
