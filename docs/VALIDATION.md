@@ -12,7 +12,9 @@
 
 The GitHub workflow builds universal Intel + Apple Silicon AU and standalone bundles. The macOS integration tests check preset state recall, existing AU parameter version hints, v0.1 project migration, KEEP, allocation-free processing through the complete wrapper, and an editor PNG. The workflow then installs the AU and runs Apple's validator.
 
-The result of the feature build will be recorded here after it completes. Do not infer 0.2 validation from the prior 0.1 build.
+[Build run #3](https://github.com/robathanjames/beat-flip-au/actions/runs/37260189717) passed on October 4, 2026 (Pacific time): Linux behavioral tests and default sanitizer checks, universal Intel + Apple Silicon AU/standalone compilation, both macOS test suites, installation, and **AU VALIDATION SUCCEEDED**. The editor PNG was rendered and visually reviewed; all controls fit within the expanded layout.
+
+The downloadable development build and editor preview are attached to that run. These checks cover the 0.2 feature commit `c290d99e5b465d6f8890136ec72f73a4c401f4cc`.
 
 ## Previously verified baseline — 0.1.0
 
