@@ -1,3 +1,9 @@
+# Version 0.3 Drum Lab validation
+
+Portable drum checks pass at 8, 44.1, 48 and 96 kHz: eight finite bounded voices, mutes, block-size invariance, stop, audition, swing, host seeks and allocation-free processing. Address/undefined behavior checks pass (local LeakSanitizer disabled because this execution host runs under ptrace; CI retains its default leak checks). All thirteen existing FLIP engine groups also pass.
+
+The macOS workflow validates the universal AU, complete processor state/legacy migration, allocation-free drum processing, and the expanded editor snapshot. Check the latest Drum Lab branch or PR checks for v0.3 macOS results. The historical validation details below refer to v0.2.
+
 # Validation status — 0.2.0
 
 ## Verified locally
