@@ -7,8 +7,8 @@ namespace
 const juce::Colour background { 0xff11151c };
 const juce::Colour panel { 0xff1b212c };
 const juce::Colour muted { 0xff909bb0 };
-const juce::Colour coral { 0xffff6d5e };
-const juce::Colour mint { 0xff81e4ce };
+const juce::Colour coral { 0xffd5f56a };
+const juce::Colour mint { 0xffd5f56a };
 
 juce::Colour effectColour (beatflip::Effect effect)
 {
@@ -81,7 +81,7 @@ void BeatFlipLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& b
 BeatFlipEditor::BeatFlipEditor (BeatFlipProcessor& owner) : AudioProcessorEditor (owner), processor (owner)
 {
     setLookAndFeel (&look);
-    setSize (860, 580);
+    setSize (1100, 940);
     addAndMakeVisible (flipButton);
     addAndMakeVisible (keepButton);
     addAndMakeVisible (enabledButton);
@@ -165,6 +165,42 @@ BeatFlipEditor::BeatFlipEditor (BeatFlipProcessor& owner) : AudioProcessorEditor
         if (presets.getSelectedId() > 0) processor.loadFactoryPreset (presets.getSelectedId() - 1);
         presets.setSelectedId (0, juce::dontSendNotification);
     };
+    addAndMakeVisible(source);
+    source.addItemList({"Audio input", "Drum machine"},1);
+    source.setTooltip("Choose external audio or the built-in drum sequencer.");
+    sourceAttachment=std::make_unique<ComboAttachment>(processor.parameters,"source",source);
+    addAndMakeVisible(drumPlay);
+    drumPlayAttachment=std::make_unique<ButtonAttachment>(processor.parameters,"drumPlay",drumPlay);
+    drumPlay.setTooltip("Arm drum playback. In a DAW, press host Play as well. Standalone runs at Free Tempo.");
+    addAndMakeVisible(grooves);
+    grooves.addItemList({"Dusty Pocket","Warehouse 909","Broken Circuit","Blank"},1);
+    grooves.setTextWhenNothingSelected("LOAD DRUM GROOVE");
+    grooves.onChange=[this] { if(grooves.getSelectedId()>0) processor.loadDrumGroove(grooves.getSelectedId()-1); grooves.setSelectedId(0,juce::dontSendNotification); };
+    configure(dust,dustLabel,"DUST"); configure(grooveSwing,grooveSwingLabel,"GROOVE SWING");
+    for(auto* slider:{&dust,&grooveSwing}) {
+        slider->textFromValueFunction=[](double v){return juce::String(juce::roundToInt(v*100))+"%";};
+        slider->valueFromTextFunction=[](const juce::String& t){return t.getDoubleValue()*.01;};
+    }
+    dustAttachment=std::make_unique<SliderAttachment>(processor.parameters,"dust",dust);
+    grooveSwingAttachment=std::make_unique<SliderAttachment>(processor.parameters,"grooveSwing",grooveSwing);
+    dust.setTooltip("Low-pass, saturation, reduced bit depth and sample hold for lo-fi drum color.");
+    grooveSwing.setTooltip("Delay alternate drum steps. Repeat Swing separately shapes FLIP pulses.");
+    for(int tr=0;tr<8;++tr) {
+        auto& pad=drumPads[tr]; pad.setButtonText(beatflip::drumNames[tr]); addAndMakeVisible(pad);
+        pad.onClick=[this,tr]{processor.auditionDrum(tr);}; pad.setTooltip("Audition this voice in Drum machine mode.");
+        auto& mute=drumMutes[tr]; mute.setButtonText("M"); addAndMakeVisible(mute);
+        drumMuteAttachments[tr]=std::make_unique<ButtonAttachment>(processor.parameters,"drumMute"+juce::String(tr),mute);
+        auto& level=drumLevels[tr]; level.setSliderStyle(juce::Slider::LinearHorizontal); level.setTextBoxStyle(juce::Slider::NoTextBox,false,0,0); addAndMakeVisible(level);
+        level.setTooltip(juce::String(beatflip::drumNames[tr])+" level");
+        drumLevelAttachments[tr]=std::make_unique<SliderAttachment>(processor.parameters,"drumLevel"+juce::String(tr),level);
+        for(int st=0;st<16;++st) {
+            auto& cell=drumGrid[tr][st]; addAndMakeVisible(cell);
+            cell.setTitle(juce::String(beatflip::drumNames[tr])+" step "+juce::String(st+1));
+            cell.setTooltip("Click: off, hit, accent. Space/Return activates the focused step.");
+            cell.onClick=[this,tr,st]{processor.cycleDrumStep(tr,st);};
+        }
+    }
+    timerCallback();
     startTimerHz (30);
 }
 
@@ -174,29 +210,34 @@ BeatFlipEditor::~BeatFlipEditor()
     setLookAndFeel (nullptr);
 }
 
+void BeatFlipEditor::timerCallback()
+{
+    const int active=processor.displayedDrumStep.load();
+    for(int tr=0;tr<8;++tr) for(int st=0;st<16;++st) {
+        const auto value=static_cast<int>(processor.parameters.getRawParameterValue(BeatFlipProcessor::drumStepId(tr,st))->load());
+        auto& cell=drumGrid[tr][st];
+        cell.setButtonText(value==2?"!":value==1?"•":"");
+        cell.setColour(juce::TextButton::buttonColourId,value==2?coral:value==1?mint.darker(.25f):panel.brighter(st==active?.35f:.05f));
+    }
+    repaint();
+}
 void BeatFlipEditor::resized()
 {
-    presets.setBounds (470, 32, 220, 30);
-    enabledButton.setBounds (710, 34, 124, 26);
-    flipButton.setBounds (28, 271, 210, 77);
-    keepButton.setBounds (28, 357, 210, 30);
-    const auto place = [] (juce::Slider& slider, juce::Label& label, int x)
-    {
-        slider.setBounds (x, 264, 104, 104);
-        label.setBounds (x, 372, 104, 18);
-    };
-    place (amount, amountLabel, 256);
-    place (mix, mixLabel, 372);
-    place (output, outputLabel, 488);
-    place (tempo, tempoLabel, 604);
-    place (swing, swingLabel, 720);
-    repeatsLabel.setBounds (44, 414, 164, 18);
-    repeats.setBounds (44, 437, 164, 30);
-    autoFlipLabel.setBounds (230, 414, 164, 18);
-    autoFlip.setBounds (230, 437, 164, 30);
-    protectButton.setBounds (425, 438, 205, 28);
-    for (std::size_t i = 0; i < effectButtons.size(); ++i)
-        effectButtons[i].setBounds (44 + static_cast<int> (i) * 154, 502, 148, 28);
+    presets.setBounds(470,32,220,30); enabledButton.setBounds(710,34,124,26);
+    source.setBounds(30,100,190,30); drumPlay.setBounds(236,100,140,30); grooves.setBounds(390,100,220,30);
+    dust.setBounds(820,76,100,80); dustLabel.setBounds(820,158,100,18);
+    grooveSwing.setBounds(948,76,120,80); grooveSwingLabel.setBounds(948,158,120,18);
+    for(int tr=0;tr<8;++tr) {
+        const int y=204+tr*40;
+        drumPads[tr].setBounds(30,y,116,32); drumMutes[tr].setBounds(152,y,38,32); drumLevels[tr].setBounds(192,y,78,32);
+        for(int st=0;st<16;++st) drumGrid[tr][st].setBounds(286+st*48,y,42,32);
+    }
+    flipButton.setBounds(28,643,210,77); keepButton.setBounds(28,729,210,30);
+    const auto place=[](juce::Slider& slider,juce::Label& label,int x) {slider.setBounds(x,636,104,104);label.setBounds(x,744,104,18);};
+    place(amount,amountLabel,256);place(mix,mixLabel,372);place(output,outputLabel,488);place(tempo,tempoLabel,604);place(swing,swingLabel,720);
+    repeatsLabel.setBounds(44,786,164,18);repeats.setBounds(44,809,164,30);
+    autoFlipLabel.setBounds(230,786,164,18);autoFlip.setBounds(230,809,164,30);protectButton.setBounds(425,810,205,28);
+    for(std::size_t i=0;i<effectButtons.size();++i) effectButtons[i].setBounds(44+static_cast<int>(i)*154,874,148,28);
 }
 
 void BeatFlipEditor::paint (juce::Graphics& g)
@@ -207,11 +248,14 @@ void BeatFlipEditor::paint (juce::Graphics& g)
     g.drawText ("BEAT FLIP", 28, 22, 320, 40, juce::Justification::centredLeft);
     g.setColour (muted);
     g.setFont (juce::FontOptions { 13.0f });
-    g.drawText ("ONE BUTTON. A DIFFERENT POCKET.", 30, 66, 430, 20, juce::Justification::centredLeft);
+    g.drawText ("DRUM LAB / SEQUENCE IT. FLIP IT. KEEP IT.", 30, 66, 430, 20, juce::Justification::centredLeft);
     g.setColour (panel);
-    g.fillRoundedRectangle (28.0f, 110.0f, 804.0f, 141.0f, 12.0f);
-    g.fillRoundedRectangle (28.0f, 401.0f, 804.0f, 142.0f, 12.0f);
+    g.fillRoundedRectangle (28.0f, 548.0f, 1044.0f, 82.0f, 12.0f);
+    g.fillRoundedRectangle (28.0f, 773.0f, 1044.0f, 142.0f, 12.0f);
 
+    g.setColour(muted); g.setFont(juce::FontOptions{12.0f});
+    g.drawText("OFF → HIT → ACCENT / ORIGINAL: SWITCH GLITCH OFF",30,174,770,20,juce::Justification::centredLeft);
+    for(int i=0;i<16;++i) g.drawText(juce::String(i+1),286+i*48,185,42,18,juce::Justification::centred);
     const auto activeSeed = processor.displayedSeed.load (std::memory_order_relaxed);
     const auto requestedSeed = static_cast<std::uint32_t> (processor.parameters.getRawParameterValue ("seed")->load());
     const auto baseSeed = processor.displayedBaseSeed.load (std::memory_order_relaxed);
@@ -222,13 +266,13 @@ void BeatFlipEditor::paint (juce::Graphics& g)
     g.setFont (juce::FontOptions { 11.0f, juce::Font::bold });
     g.setColour (muted);
     g.drawText ("PATTERN  " + juce::String (activeSeed) + (requestedSeed != baseSeed ? "  /  FLIP QUEUED" : ""),
-                44, 119, 760, 20, juce::Justification::centredLeft);
+                44, 550, 1000, 20, juce::Justification::centredLeft);
 
     for (int i = 0; i < beatflip::stepCount; ++i)
     {
         const auto effect = static_cast<beatflip::Effect> ((packedPattern >> (static_cast<unsigned> (i) * 3u)) & 7u);
         const auto colour = effectColour (effect);
-        const auto cell = juce::Rectangle<float> (44.0f + i * 48.0f, 151.0f, 42.0f, 55.0f);
+        const auto cell = juce::Rectangle<float> (286.0f + i * 48.0f, 576.0f, 42.0f, 34.0f);
         g.setColour (colour.withAlpha (i == step && playing && enabled ? 0.34f : 0.10f));
         g.fillRoundedRectangle (cell, 5.0f);
         g.setColour (colour.withAlpha (enabled ? 1.0f : 0.4f));
@@ -237,15 +281,15 @@ void BeatFlipEditor::paint (juce::Graphics& g)
         g.drawText (beatflip::effectName (effect), cell.toNearestInt(), juce::Justification::centred);
         g.setColour (muted);
         g.setFont (juce::FontOptions { 9.0f });
-        g.drawText (juce::String (i + 1), static_cast<int> (cell.getX()), 209, 42, 17, juce::Justification::centred);
+        g.drawText (juce::String (i + 1), static_cast<int> (cell.getX()), 611, 42, 17, juce::Justification::centred);
     }
 
     g.setColour (muted);
     g.setFont (juce::FontOptions { 11.0f });
-    g.drawText ("EFFECT PALETTE", 44, 477, 760, 18, juce::Justification::centredLeft);
+    g.drawText ("EFFECT PALETTE", 44, 849, 1000, 18, juce::Justification::centredLeft);
     const auto sync = processor.displayedHostSync.load (std::memory_order_relaxed) ? "HOST SYNC" : "FREE RUN";
     const auto bpm = processor.displayedBpm.load (std::memory_order_relaxed);
     juce::String status = juce::String (sync) + "  /  " + juce::String (bpm, 1) + " BPM";
     status += ! playing ? "  /  PRESS PLAY" : processor.displayedCapturing.load() ? "  /  CAPTURING A BAR" : "  /  READY";
-    g.drawText (status, 28, 555, 804, 17, juce::Justification::centredLeft);
+    g.drawText (status, 28, 923, 1044, 17, juce::Justification::centredLeft);
 }
