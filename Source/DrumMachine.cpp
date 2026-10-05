@@ -67,7 +67,7 @@ void DrumMachine::process(float* const* output,int channels,int frames,const Dru
     const double start=t.hasBarStart&&std::isfinite(t.barStartPpq)?t.barStartPpq:0;
     const bool positioned=t.hasPosition&&std::isfinite(t.ppq);
     double ppq=positioned?t.ppq:freePpq;
-    if ((playing&&!wasPlaying) || (positioned&&std::abs(ppq-expectedPpq)>delta*4)) {
+    if ((playing&&!wasPlaying) || (playing&&positioned&&std::abs(ppq-expectedPpq)>delta*4)) {
         cursors.fill(-1); step=-1; low=held=0;
     }
     if(!playing&&wasPlaying) { cursors.fill(-1); step=-1; low=held=0; }
@@ -101,6 +101,6 @@ void DrumMachine::process(float* const* output,int channels,int frames,const Dru
         for(int ch=0;ch<channels;++ch) output[ch][i]=held*.8f;
     }
     if(!playing) step=-1;
-    freePpq=ppq; expectedPpq=positioned?t.ppq+frames*delta:ppq; wasPlaying=playing;
+    freePpq=ppq; expectedPpq=positioned?t.ppq+(playing?frames*delta:0):ppq; wasPlaying=playing;
 }
 }
