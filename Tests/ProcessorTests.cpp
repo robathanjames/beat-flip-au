@@ -32,7 +32,7 @@ void stateRecallAndLegacyDefaults()
     for (auto* parameter : original.getParameters())
     {
         const auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter);
-        require (parameter->getVersionHint() == (oldParameterIds.contains (ranged->getParameterID()) ? 1 : 2),
+        require (parameter->getVersionHint() == (oldParameterIds.contains (ranged->getParameterID()) ? 1 : ranged->getParameterID().startsWith("drum") || ranged->getParameterID() == "source" || ranged->getParameterID() == "dust" || ranged->getParameterID() == "grooveSwing" ? 3 : 2),
                  "Existing AU parameter ordering must retain its original version hints");
     }
     setValue (original, "tempo", 137.5f);
@@ -69,6 +69,7 @@ void stateRecallAndLegacyDefaults()
     require (value (restored, "swing") == 0.0f && value (restored, "repeats") == 0.0f
              && value (restored, "autoFlip") == 0.0f && value (restored, "protect") == 1.0f,
              "Legacy projects must restore the original pattern defaults");
+    require(value(restored,"source")==0 && value(restored,"drumPlay")==0,"Legacy projects must use audio input with drums stopped");
     for (const auto* id : BeatFlipProcessor::effectParameterIds)
         require (value (restored, id) == 1.0f, "Legacy projects must enable the full original effect palette");
 }
@@ -105,6 +106,27 @@ void keepAndRealTimeProcessing()
              "A kept pattern must survive a project reload");
 }
 
+void drumStateAndProcessing()
+{
+    BeatFlipProcessor original, restored;
+    original.loadDrumGroove(2);
+    original.cycleDrumStep(7,15);
+    setValue(original,"drumMute2",1); setValue(original,"drumLevel0",.42f);
+    setValue(original,"dust",.8f); setValue(original,"grooveSwing",.31f); setValue(original,"drumPlay",1); setValue(original,"enabled",1);
+    juce::MemoryBlock state; original.getStateInformation(state);
+    restored.setStateInformation(state.getData(),static_cast<int>(state.getSize()));
+    for(auto* parameter:original.getParameters()) {
+        const auto id=dynamic_cast<juce::RangedAudioParameter*>(parameter)->getParameterID();
+        require(std::abs(original.parameters.getRawParameterValue(id)->load()-restored.parameters.getRawParameterValue(id)->load())<.00001f,"Every drum control and step must survive project recall");
+    }
+    restored.prepareToPlay(8192,256);juce::AudioBuffer<float> audio(2,256);juce::MidiBuffer midi;
+    allocationGuard::start();for(int i=0;i<100;++i) restored.processBlock(audio,midi);const auto allocations=allocationGuard::stop();
+    require(allocations==0,"Drum source and FLIP callback must allocate no memory");
+    setValue(restored,"drumPlay",0);restored.processBlock(audio,midi);
+    require(audio.getMagnitude(0,audio.getNumSamples())==0,"Stopping drums must silence output");
+    require(value(restored,"source")==1,"Loading a drum groove must select the drum source");
+}
+
 void editorSnapshot()
 {
     BeatFlipProcessor processor;
@@ -115,7 +137,7 @@ void editorSnapshot()
     juce::MidiBuffer midi;
     for (int i = 0; i < 130; ++i) processor.processBlock (audio, midi);
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
-    require (editor->getWidth() == 860 && editor->getHeight() == 580, "The editor must have room for the expanded controls");
+    require (editor->getWidth() == 1100 && editor->getHeight() == 940, "The editor must have room for the expanded controls");
     for (auto* child : editor->getChildren())
         require (editor->getLocalBounds().contains (child->getBounds()), "Editor controls must stay within its bounds");
     const auto image = editor->createComponentSnapshot (editor->getLocalBounds());
@@ -130,6 +152,7 @@ int main()
     const std::pair<const char*, void (*)()> tests[] {
         { "Preset state recall and v0.1 project migration", stateRecallAndLegacyDefaults },
         { "KEEP and allocation-free plugin processing", keepAndRealTimeProcessing },
+        { "Drum grid recall and realtime processing", drumStateAndProcessing },
         { "Expanded editor layout and PNG rendering", editorSnapshot }
     };
     int failures = 0;
