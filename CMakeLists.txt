@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(BeatFlip VERSION 0.1.0 LANGUAGES C CXX)
+project(BeatFlip VERSION 0.2.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -65,7 +65,8 @@ if(BEATFLIP_BUILD_PLUGIN)
         Source/PluginProcessor.cpp
         Source/PluginProcessor.h
         Source/PluginEditor.cpp
-        Source/PluginEditor.h)
+        Source/PluginEditor.h
+        Source/FactoryPresets.h)
     target_compile_definitions(BeatFlip PUBLIC
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0)
@@ -74,4 +75,12 @@ if(BEATFLIP_BUILD_PLUGIN)
         juce::juce_audio_utils
         PUBLIC juce::juce_recommended_config_flags
                juce::juce_recommended_warning_flags)
+
+    if(BUILD_TESTING)
+        juce_add_console_app(beatflip_processor_tests PRODUCT_NAME "Beat Flip integration tests")
+        target_sources(beatflip_processor_tests PRIVATE Tests/ProcessorTests.cpp Tests/AllocationGuard.cpp)
+        target_include_directories(beatflip_processor_tests PRIVATE Source Tests)
+        target_link_libraries(beatflip_processor_tests PRIVATE BeatFlip juce::juce_audio_utils)
+        add_test(NAME plugin_state_and_editor COMMAND beatflip_processor_tests)
+    endif()
 endif()

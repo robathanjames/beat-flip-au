@@ -27,10 +27,41 @@ T finiteOr (T value, T fallback) noexcept
 {
     return std::isfinite (value) ? value : fallback;
 }
+
+PatternOptions safeOptions (PatternOptions options) noexcept
+{
+    options.effectMask &= allEffects;
+    if (options.repeats != 2 && options.repeats != 4 && options.repeats != 8 && options.repeats != 16)
+        options.repeats = 0;
+    return options;
 }
 
-Pattern makePattern (std::uint32_t seed) noexcept
+bool sameOptions (const PatternOptions& a, const PatternOptions& b) noexcept
 {
+    return a.effectMask == b.effectMask && a.repeats == b.repeats && a.protectDownbeat == b.protectDownbeat;
+}
+
+std::uint32_t variationSeed (std::uint32_t seed, std::uint64_t variation) noexcept
+{
+    if (variation == 0) return seed;
+    // A deterministic full-period walk through the host's seed range. No random
+    // device or host parameter notification is needed on the audio thread.
+    return static_cast<std::uint32_t> ((static_cast<std::uint64_t> (seed - 1u)
+                                      + (variation % 1048575u) * 7919u) % 1048575u + 1u);
+}
+}
+
+Pattern makePattern (std::uint32_t seed, const PatternOptions& requestedOptions) noexcept
+{
+    const auto options = safeOptions (requestedOptions);
+    constexpr std::array<Effect, 10> weightedEffects {
+        Effect::repeat, Effect::repeat, Effect::repeat, Effect::shuffle, Effect::shuffle,
+        Effect::reverse, Effect::reverse, Effect::gate, Effect::gate, Effect::halfSpeed
+    };
+    std::array<Effect, 10> available {};
+    unsigned count = 0;
+    for (auto effect : weightedEffects)
+        if ((options.effectMask & effectBit (effect)) != 0) available[count++] = effect;
     // A fixed integer PRNG makes a saved seed identical across machines and runs.
     auto state = seed ^ 0x9e3779b9u;
     if (state == 0) state = 0x6d2b79f5u;
@@ -38,19 +69,17 @@ Pattern makePattern (std::uint32_t seed) noexcept
     for (int i = 0; i < stepCount; ++i)
     {
         auto& step = result[static_cast<std::size_t> (i)];
-        const auto pick = nextRandom (state) % 10u;
-        step.effect = pick < 3u ? Effect::repeat
-                    : pick < 5u ? Effect::shuffle
-                    : pick < 7u ? Effect::reverse
-                    : pick < 9u ? Effect::gate : Effect::halfSpeed;
+        const auto pick = nextRandom (state);
+        step.effect = count == 0 ? Effect::clean : available[pick % count];
         step.source = static_cast<std::uint8_t> (nextRandom (state) % stepCount);
         if (step.source == i) step.source = static_cast<std::uint8_t> ((i + 5) % stepCount);
         step.repeats = static_cast<std::uint8_t> (2u << (nextRandom (state) % 3u));
+        if (options.repeats != 0) step.repeats = static_cast<std::uint8_t> (options.repeats);
         step.threshold = 0.08f + 0.90f * static_cast<float> (nextRandom (state) & 0xffffu) / 65535.0f;
         if (step.effect != Effect::shuffle) step.source = static_cast<std::uint8_t> (i);
     }
     // Keep the downbeat recognizable. The rest of the bar is fair game.
-    result[0].effect = Effect::clean;
+    if (options.protectDownbeat) result[0].effect = Effect::clean;
     return result;
 }
 
@@ -92,6 +121,8 @@ void GlitchEngine::clearHistory() noexcept
     sliceReady = false;
     fadeClean = false;
     activeStep = {};
+    autoBarCount = autoVariation = 0;
+    activeAutoFlipBars = -1;
 }
 
 void GlitchEngine::reset() noexcept
@@ -139,6 +170,9 @@ void GlitchEngine::process (float* const* channels, int numChannels, int numSamp
     const auto amount = std::clamp (finiteOr (settings.amount, 0.7f), 0.0f, 1.0f);
     const auto mix = std::clamp (finiteOr (settings.mix, 0.85f), 0.0f, 1.0f);
     const auto gain = std::clamp (finiteOr (settings.outputGain, 1.0f), 0.0f, 2.0f);
+    const auto swing = static_cast<double> (std::clamp (finiteOr (settings.swing, 0.0f), 0.0f, 0.75f));
+    const auto options = safeOptions (settings.pattern);
+    const auto autoFlipBars = std::clamp (settings.autoFlipBars, 0, 8);
     auto ppq = positionValid ? transport.ppq : freePpq;
     const auto anchor = transport.hasBarStart && std::isfinite (transport.barStartPpq)
         ? transport.barStartPpq : 0.0;
@@ -182,11 +216,25 @@ void GlitchEngine::process (float* const* channels, int numChannels, int numSamp
         if (stepBoundary)
         {
             const auto previousEffect = activeStep.effect;
+            const auto barBoundary = currentStep >= 0 && index == 0 && phase < lastPhase - 1.0e-7;
             currentStep = index;
-            if (activeSeed != settings.seed)
+            if (activeBaseSeed != settings.seed || activeAutoFlipBars != autoFlipBars)
             {
-                activeSeed = settings.seed;
-                pattern = makePattern (activeSeed);
+                activeBaseSeed = settings.seed;
+                activeAutoFlipBars = autoFlipBars;
+                autoBarCount = autoVariation = 0;
+            }
+            else if (barBoundary && settings.enabled && autoFlipBars > 0)
+            {
+                ++autoBarCount;
+                if (autoBarCount % static_cast<unsigned> (autoFlipBars) == 0) ++autoVariation;
+            }
+            const auto nextSeed = variationSeed (activeBaseSeed, autoVariation);
+            if (activeSeed != nextSeed || ! sameOptions (options, activeOptions))
+            {
+                activeSeed = nextSeed;
+                activeOptions = options;
+                pattern = makePattern (activeSeed, activeOptions);
             }
             activeStep = pattern[static_cast<std::size_t> (index)];
             if (amount < activeStep.threshold) activeStep.effect = Effect::clean;
@@ -204,7 +252,12 @@ void GlitchEngine::process (float* const* channels, int numChannels, int numSamp
         }
         lastPhase = phase;
 
-        const auto repeatIndex = static_cast<int> (stepPhase / repeatSamples);
+        const auto pairPhase = positiveModulo (stepPhase, repeatSamples * 2.0);
+        const auto firstPulseLength = repeatSamples * (1.0 + swing);
+        const auto secondPulse = pairPhase >= firstPulseLength;
+        const auto repeatIndex = static_cast<int> (stepPhase / (repeatSamples * 2.0)) * 2 + (secondPulse ? 1 : 0);
+        const auto pulsePhase = secondPulse ? pairPhase - firstPulseLength : pairPhase;
+        const auto pulseLength = repeatSamples * (secondPulse ? 1.0 - swing : 1.0 + swing);
         if (activeStep.effect == Effect::repeat && repeatIndex != lastRepeat)
         {
             fadeFrom = lastWet;
@@ -225,7 +278,7 @@ void GlitchEngine::process (float* const* channels, int numChannels, int numSamp
                 {
                     case Effect::clean: break;
                     case Effect::repeat:
-                        wet = readHistory (ch, sourceStart + positiveModulo (stepPhase, repeatSamples));
+                        wet = readHistory (ch, sourceStart + pulsePhase);
                         break;
                     case Effect::reverse:
                         wet = readHistory (ch, sourceStart + std::max (0.0, sliceSamples - 1.0 - stepPhase));
@@ -235,8 +288,8 @@ void GlitchEngine::process (float* const* channels, int numChannels, int numSamp
                         break;
                     case Effect::gate:
                     {
-                        const auto gatePhase = positiveModulo (stepPhase, repeatSamples);
-                        const auto half = repeatSamples * 0.5;
+                        const auto gatePhase = pulsePhase;
+                        const auto half = pulseLength * 0.5;
                         const auto ramp = std::min (static_cast<double> (fadeLength), half * 0.25);
                         const auto envelope = std::clamp (std::min (gatePhase, half - gatePhase) / std::max (ramp, 1.0), 0.0, 1.0);
                         wet *= static_cast<float> (envelope);
@@ -248,7 +301,7 @@ void GlitchEngine::process (float* const* channels, int numChannels, int numSamp
                 }
             }
             // Clean cells remain bit-identical at unity gain. Glitch discontinuities get a short ramp.
-            if (activeStep.effect != Effect::clean || fadeClean)
+            if (fadeRemaining > 0 && (activeStep.effect != Effect::clean || fadeClean))
                 wet = fadeFrom[channelIndex] + fade * (wet - fadeFrom[channelIndex]);
             lastWet[channelIndex] = wet;
             channels[ch][frame] = (dry[channelIndex] + smoothedMix * (wet - dry[channelIndex])) * smoothedGain;

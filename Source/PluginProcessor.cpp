@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "FactoryPresets.h"
 #include <cmath>
 
 BeatFlipProcessor::BeatFlipProcessor()
@@ -13,6 +14,13 @@ BeatFlipProcessor::BeatFlipProcessor()
     outputParameter = parameters.getRawParameterValue ("output");
     enabledParameter = parameters.getRawParameterValue ("enabled");
     tempoParameter = parameters.getRawParameterValue ("tempo");
+    swingParameter = parameters.getRawParameterValue ("swing");
+    repeatsParameter = parameters.getRawParameterValue ("repeats");
+    autoFlipParameter = parameters.getRawParameterValue ("autoFlip");
+    protectParameter = parameters.getRawParameterValue ("protect");
+    for (std::size_t i = 0; i < effectParameters.size(); ++i)
+        effectParameters[i] = parameters.getRawParameterValue (effectParameterIds[i]);
+    publishPattern();
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout BeatFlipProcessor::makeParameters()
@@ -28,6 +36,17 @@ juce::AudioProcessorValueTreeState::ParameterLayout BeatFlipProcessor::makeParam
                 juce::NormalisableRange<float> { -24.0f, 6.0f, 0.1f }, 0.0f));
     layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { "tempo", 1 }, "Free Tempo",
                 juce::NormalisableRange<float> { 20.0f, 400.0f, 0.1f }, 120.0f));
+    // Existing IDs/version hints stay unchanged so Logic automation remains stable.
+    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { "swing", 2 }, "Repeat Swing",
+                juce::NormalisableRange<float> { 0.0f, 0.75f, 0.001f }, 0.0f));
+    layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { "repeats", 2 }, "Stutter Speed",
+                juce::StringArray { "Random", "2 per cell", "4 per cell", "8 per cell", "16 per cell" }, 0));
+    layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { "autoFlip", 2 }, "Auto Flip",
+                juce::StringArray { "Off", "Every bar", "Every 2 bars", "Every 4 bars", "Every 8 bars" }, 0));
+    layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { "protect", 2 }, "Protect Downbeat", true));
+    const std::array<const char*, 5> names { "Use Stutter", "Use Reverse", "Use Shuffle", "Use Gate", "Use Half Speed" };
+    for (std::size_t i = 0; i < effectParameterIds.size(); ++i)
+        layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { effectParameterIds[i], 2 }, names[i], true));
     return layout;
 }
 
@@ -58,6 +77,16 @@ void BeatFlipProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
     settings.mix = mixParameter->load (std::memory_order_relaxed);
     settings.outputGain = juce::Decibels::decibelsToGain (outputParameter->load (std::memory_order_relaxed));
     settings.enabled = enabledParameter->load (std::memory_order_relaxed) >= 0.5f;
+    settings.swing = swingParameter->load (std::memory_order_relaxed);
+    settings.pattern.protectDownbeat = protectParameter->load (std::memory_order_relaxed) >= 0.5f;
+    settings.pattern.repeats = repeatChoices[static_cast<std::size_t> (juce::jlimit (0, 4,
+        juce::roundToInt (repeatsParameter->load (std::memory_order_relaxed))))];
+    settings.autoFlipBars = autoFlipChoices[static_cast<std::size_t> (juce::jlimit (0, 4,
+        juce::roundToInt (autoFlipParameter->load (std::memory_order_relaxed))))];
+    settings.pattern.effectMask = 0;
+    for (std::size_t i = 0; i < effectParameters.size(); ++i)
+        if (effectParameters[i]->load (std::memory_order_relaxed) >= 0.5f)
+            settings.pattern.effectMask |= static_cast<std::uint8_t> (1u << i);
 
     beatflip::Transport transport;
     transport.bpm = tempoParameter->load (std::memory_order_relaxed);
@@ -96,6 +125,8 @@ void BeatFlipProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
     engine.process (buffer.getArrayOfWritePointers(), getTotalNumInputChannels(), buffer.getNumSamples(), settings, transport);
     displayedStep.store (engine.getCurrentStep(), std::memory_order_relaxed);
     displayedSeed.store (engine.getActiveSeed(), std::memory_order_relaxed);
+    displayedBaseSeed.store (engine.getBaseSeed(), std::memory_order_relaxed);
+    publishPattern (settings.amount);
     displayedCapturing.store (engine.isCapturing(), std::memory_order_relaxed);
     displayedHostSync.store (transport.hasPosition, std::memory_order_relaxed);
     displayedPlaying.store (transport.playing, std::memory_order_relaxed);
@@ -120,6 +151,54 @@ void BeatFlipProcessor::flip()
     enabled->endChangeGesture();
 }
 
+void BeatFlipProcessor::publishPattern (float amount) noexcept
+{
+    std::uint64_t packed = 0;
+    for (std::size_t i = 0; i < engine.getPattern().size(); ++i)
+    {
+        const auto& step = engine.getPattern()[i];
+        const auto effect = amount < step.threshold ? beatflip::Effect::clean : step.effect;
+        packed |= static_cast<std::uint64_t> (effect) << (i * 3u);
+    }
+    displayedPattern.store (packed, std::memory_order_relaxed);
+}
+
+void BeatFlipProcessor::setParameterValue (const char* id, float value)
+{
+    if (auto* parameter = parameters.getParameter (id))
+    {
+        parameter->beginChangeGesture();
+        parameter->setValueNotifyingHost (parameter->convertTo0to1 (value));
+        parameter->endChangeGesture();
+    }
+}
+
+void BeatFlipProcessor::keepPattern()
+{
+    setParameterValue ("seed", static_cast<float> (displayedSeed.load (std::memory_order_relaxed)));
+    setParameterValue ("autoFlip", 0.0f);
+}
+
+void BeatFlipProcessor::loadFactoryPreset (int index)
+{
+    const auto& presets = beatflip::factoryPresets();
+    if (index < 0 || index >= static_cast<int> (presets.size())) return;
+    const auto& settings = presets[static_cast<std::size_t> (index)].settings;
+    setParameterValue ("seed", static_cast<float> (settings.seed));
+    setParameterValue ("amount", settings.amount);
+    setParameterValue ("mix", settings.mix);
+    setParameterValue ("swing", settings.swing);
+    setParameterValue ("output", 0.0f);
+    for (std::size_t i = 0; i < repeatChoices.size(); ++i)
+        if (repeatChoices[i] == settings.pattern.repeats) setParameterValue ("repeats", static_cast<float> (i));
+    for (std::size_t i = 0; i < autoFlipChoices.size(); ++i)
+        if (autoFlipChoices[i] == settings.autoFlipBars) setParameterValue ("autoFlip", static_cast<float> (i));
+    setParameterValue ("protect", settings.pattern.protectDownbeat ? 1.0f : 0.0f);
+    for (std::size_t i = 0; i < effectParameterIds.size(); ++i)
+        setParameterValue (effectParameterIds[i], (settings.pattern.effectMask & (1u << i)) != 0 ? 1.0f : 0.0f);
+    setParameterValue ("enabled", 1.0f);
+}
+
 juce::AudioProcessorEditor* BeatFlipProcessor::createEditor()
 {
     return new BeatFlipEditor (*this);
@@ -135,7 +214,21 @@ void BeatFlipProcessor::setStateInformation (const void* data, int size)
 {
     if (const auto xml = getXmlFromBinary (data, size))
         if (xml->hasTagName (parameters.state.getType()))
-            parameters.replaceState (juce::ValueTree::fromXml (*xml));
+        {
+            auto state = juce::ValueTree::fromXml (*xml);
+            // Old projects contain no v0.2 parameters. Fill missing values from
+            // defaults rather than keeping settings from a previously loaded preset.
+            for (auto* parameter : getParameters())
+                if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter))
+                    if (! state.getChildWithProperty ("id", ranged->getParameterID()).isValid())
+                    {
+                        juce::ValueTree child { "PARAM" };
+                        child.setProperty ("id", ranged->getParameterID(), nullptr);
+                        child.setProperty ("value", ranged->convertFrom0to1 (ranged->getDefaultValue()), nullptr);
+                        state.appendChild (child, nullptr);
+                    }
+            parameters.replaceState (state);
+        }
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

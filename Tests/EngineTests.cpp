@@ -1,5 +1,6 @@
 #include "GlitchEngine.h"
 #include "AllocationGuard.h"
+#include "FactoryPresets.h"
 
 #include <algorithm>
 #include <cmath>
@@ -246,10 +247,169 @@ void realTimeNoAllocations()
     for (int i = 0; i < 100; ++i)
     {
         settings.seed = static_cast<std::uint32_t> (i + 1);
+        settings.pattern.effectMask = static_cast<std::uint8_t> (i % 32);
+        settings.pattern.repeats = i % 2 == 0 ? 16 : 4;
+        settings.pattern.protectDownbeat = i % 3 == 0;
+        settings.swing = 0.5f;
+        settings.autoFlipBars = 2;
         engine.process (&channel, 1, 2048, settings, transport);
     }
     const auto count = allocationGuard::stop();
     require (count == 0, "Audio processing and pattern changes must allocate no memory");
+}
+
+void effectPaletteAndDownbeat()
+{
+    const auto input = signal (barSamples * 4);
+    auto settings = wetSettings();
+    settings.pattern.effectMask = 0;
+    require (render (input, settings, { 31, 257 }) == input, "An empty effect palette must be transparent");
+    for (const auto effect : { beatflip::Effect::repeat, beatflip::Effect::reverse, beatflip::Effect::shuffle,
+                               beatflip::Effect::gate, beatflip::Effect::halfSpeed })
+    {
+        settings.pattern.effectMask = beatflip::effectBit (effect);
+        settings.pattern.protectDownbeat = false;
+        const auto pattern = beatflip::makePattern (settings.seed, settings.pattern);
+        for (const auto& step : pattern) require (step.effect == effect, "Only selected effects may be generated");
+    }
+    settings.pattern.effectMask = beatflip::effectBit (beatflip::Effect::reverse);
+    settings.pattern.protectDownbeat = true;
+    auto anchored = render (input, settings, { 64 });
+    settings.pattern.protectDownbeat = false;
+    auto unanchored = render (input, settings, { 64 });
+    const auto frame = barSamples * 2 + 100;
+    require (anchored[frame] == input[frame], "Downbeat protection must keep the first cell live");
+    require (std::abs (unanchored[frame] - input[frame]) > 0.01f, "Turning off protection must allow a downbeat glitch");
+}
+
+void repeatSpeedAndSwing()
+{
+    std::vector<float> input (barSamples * 4);
+    for (std::size_t i = 0; i < input.size(); ++i) input[i] = static_cast<float> (i) / 200000.0f;
+    auto settings = wetSettings();
+    settings.pattern.effectMask = beatflip::effectBit (beatflip::Effect::repeat);
+    settings.pattern.protectDownbeat = false;
+    const auto source = barSamples + 3 * sliceSamples;
+    for (const auto repeats : { 2, 4, 8, 16 })
+    {
+        settings.pattern.repeats = repeats;
+        const auto audio = render (input, settings, { 19, 511, 3 });
+        const auto offset = 220;
+        const auto cursor = offset % (sliceSamples / repeats);
+        const auto expected = static_cast<float> (source + cursor) / 200000.0f;
+        require (std::abs (audio[barSamples * 2 + 3 * sliceSamples + offset] - expected) < 0.00001f,
+                 "Stutter speed must set the actual number of repeats per cell");
+    }
+    settings.pattern.repeats = 4;
+    settings.swing = 0.5f;
+    const auto swung = render (input, settings, { 17, 256 });
+    for (const auto offset : { 320, 420 })
+    {
+        const auto cursor = offset < 384 ? offset : offset - 384;
+        const auto expected = static_cast<float> (source + cursor) / 200000.0f;
+        require (std::abs (swung[barSamples * 2 + 3 * sliceSamples + offset] - expected) < 0.00001f,
+                 "Swing must delay the second pulse without changing the read speed");
+    }
+    settings.pattern.effectMask = beatflip::effectBit (beatflip::Effect::gate);
+    input.assign (barSamples * 4, 0.5f);
+    settings.swing = 0.0f;
+    const auto straightGate = render (input, settings, { 64 });
+    settings.swing = 0.5f;
+    const auto swungGate = render (input, settings, { 64 });
+    const auto frame = barSamples * 2 + 3 * sliceSamples + 300;
+    require (straightGate[frame] > 0.49f && swungGate[frame] < 0.00001f, "Swing must also move gate openings");
+}
+
+void automaticVariations()
+{
+    const auto input = signal (barSamples * 10);
+    auto settings = wetSettings();
+    settings.autoFlipBars = 2;
+    settings.pattern.repeats = 16;
+    settings.swing = 0.43f;
+    const auto small = render (input, settings, { 1, 127, 64 });
+    const auto large = render (input, settings, { 4093, 31, 1024 });
+    for (std::size_t i = 0; i < small.size(); ++i)
+        require (std::abs (small[i] - large[i]) < 0.0001f, "Automatic variations and swing must be independent of buffer size");
+
+    for (const auto bars : { 1, 2, 4, 8 })
+    {
+        beatflip::GlitchEngine engine;
+        engine.prepare (sampleRate);
+        settings.autoFlipBars = bars;
+        beatflip::Transport transport;
+        transport.hasPosition = transport.hasBarStart = transport.looping = true;
+        transport.loopStartPpq = 0.0;
+        transport.loopEndPpq = 4.0;
+        auto audio = signal (256);
+        for (int position = 0; position <= barSamples * bars; position += 256)
+        {
+            float* channel = audio.data();
+            transport.ppq = (position % barSamples) / (sampleRate * 0.5);
+            engine.process (&channel, 1, 256, settings, transport);
+            if (position < barSamples * bars)
+                require (engine.getActiveSeed() == settings.seed, "Auto Flip must wait for the selected number of bars");
+        }
+        require (engine.getActiveSeed() != settings.seed, "Auto Flip must advance across one-bar host loops");
+        require (engine.getBaseSeed() == settings.seed, "Automatic variation must leave the saved base seed intact");
+        const auto variation = engine.getActiveSeed();
+        engine.reset();
+        float* channel = audio.data();
+        transport.ppq = 0.0;
+        engine.process (&channel, 1, 256, settings, transport);
+        require (engine.getActiveSeed() == settings.seed, "Playback restart must reproduce the base pattern");
+        transport.looping = false;
+        transport.ppq = 43.0;
+        engine.process (&channel, 1, 256, settings, transport);
+        require (engine.getActiveSeed() == settings.seed && engine.isCapturing(), "Seek must reset the variation sequence and capture");
+        require (variation != settings.seed, "A generated variation must differ from the base");
+    }
+}
+
+void paletteChangesAreQuantized()
+{
+    beatflip::GlitchEngine engine;
+    engine.prepare (sampleRate);
+    auto audio = signal (sliceSamples + 1);
+    auto settings = wetSettings();
+    beatflip::Transport transport;
+    transport.hasPosition = true;
+    float* channel = audio.data();
+    engine.process (&channel, 1, 128, settings, transport);
+    const auto before = engine.getPattern();
+    settings.pattern = { beatflip::effectBit (beatflip::Effect::reverse), 16, false };
+    transport.ppq = 128.0 / (sampleRate * 0.5);
+    channel = audio.data() + 128;
+    engine.process (&channel, 1, 128, settings, transport);
+    require (engine.getPattern()[0].effect == before[0].effect, "Palette changes must wait for a grid boundary");
+    transport.ppq = 256.0 / (sampleRate * 0.5);
+    channel = audio.data() + 256;
+    engine.process (&channel, 1, sliceSamples - 256 + 1, settings, transport);
+    for (const auto& step : engine.getPattern())
+        require (step.effect == beatflip::Effect::reverse && step.repeats == 16, "New palette and speed must apply at the next cell");
+}
+
+void factoryPresetsAndInvalidControls()
+{
+    const auto input = signal (barSamples * 5);
+    for (const auto& preset : beatflip::factoryPresets())
+    {
+        const auto audio = render (input, preset.settings, { 37, 511 });
+        double difference = 0.0;
+        for (std::size_t i = barSamples * 2; i < audio.size(); ++i)
+        {
+            require (std::isfinite (audio[i]) && std::abs (audio[i]) <= 0.59f, "Every preset must produce finite, bounded output");
+            difference += std::abs (audio[i] - input[i]);
+        }
+        require (difference > 1.0, "Every factory preset must audibly process the drums");
+    }
+    auto invalid = wetSettings();
+    invalid.swing = std::numeric_limits<float>::quiet_NaN();
+    invalid.pattern.effectMask = 255;
+    invalid.pattern.repeats = -99;
+    invalid.autoFlipBars = std::numeric_limits<int>::max();
+    const auto safe = render (input, invalid, { 127 });
+    for (const auto value : safe) require (std::isfinite (value), "Invalid new controls must remain safe");
 }
 }
 
@@ -263,7 +423,12 @@ int main()
         { "FLIP quantizes to the next grid step", flipQuantizedToNextStep },
         { "Host loops, seeks and playback restart", loopAndSeek },
         { "Odd meter, pickup positions and invalid host values", unusualTransportAndBadValues },
-        { "No allocations on the audio thread", realTimeNoAllocations }
+        { "No allocations on the audio thread", realTimeNoAllocations },
+        { "Effect palette and optional downbeat protection", effectPaletteAndDownbeat },
+        { "Stutter speed and swung repeat/gate timing", repeatSpeedAndSwing },
+        { "Automatic variations, buffer sizes, loops and restart", automaticVariations },
+        { "Palette edits quantize to the next cell", paletteChangesAreQuantized },
+        { "Factory presets and invalid new controls", factoryPresetsAndInvalidControls }
     };
     int failures = 0;
     for (const auto& test : tests)
