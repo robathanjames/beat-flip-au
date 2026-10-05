@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#141615">
+  <meta name="description" content="Program an eight-voice lo-fi drum machine, then flip your beat into tempo-synced stutters, reverses, and new pockets.">
+  <title>Beat Flip · Drum Lab</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23141615'/%3E%3Cpath d='M7 8h18v6H13v3h10v5H13v4H7z' fill='%23ccff78'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="machine">
+    <header class="masthead">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">F</span><h1>BEAT FLIP<span>DRUM LAB / 09</span></h1></div>
+      <div class="mast-note">PROGRAM A POCKET.<br><span>THEN TURN IT INSIDE OUT.</span></div>
+      <div class="power"><span id="power-led" aria-hidden="true"></span><span id="power-label">AUDIO STANDBY</span></div>
+    </header>
+
+    <section class="transport" aria-label="Transport and sound controls">
+      <div class="play-group"><button id="play" class="play" aria-label="Play beat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 12 7-12 7z" fill="currentColor"/></svg><span>PLAY</span></button><button id="stop" class="stop" aria-label="Stop beat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h12v12H6z" fill="currentColor"/></svg></button><span class="shortcut">SPACE</span></div>
+      <div class="tempo-control"><label for="tempo">TEMPO</label><div><input id="tempo" type="number" min="60" max="180" value="96" inputmode="numeric"><span>BPM</span></div></div>
+      <div class="fader"><label for="swing">GROOVE SWING <output id="swing-value" for="swing">18%</output></label><input id="swing" type="range" min="0" max="60" value="18"></div>
+      <div class="fader"><label for="dust">DUST <output id="dust-value" for="dust">34%</output></label><input id="dust" type="range" min="0" max="100" value="34" aria-describedby="dust-help"><span id="dust-help" class="sr-only">Adds warmer filtering, saturation, and reduced bit depth.</span></div>
+      <div class="fader volume"><label for="volume">VOLUME <output id="volume-value" for="volume">70%</output></label><input id="volume" type="range" min="0" max="100" value="70"></div>
+      <div class="bar-counter"><span>BAR / STEP</span><strong id="position">01 <small>/</small> 01</strong></div>
+    </section>
+
+    <section class="sequencer" aria-labelledby="sequencer-title">
+      <div class="section-top"><div class="section-name"><span class="section-number">01</span><h2 id="sequencer-title">SEQUENCER</h2><span class="badge">16 STEPS</span></div><div class="pattern-actions"><label class="sr-only" for="groove">Starting groove</label><select id="groove"><option value="pocket">Dusty pocket</option><option value="warehouse">Warehouse 909</option><option value="broken">Broken circuit</option><option value="blank">Blank pattern</option><option value="custom" disabled>Custom pattern</option></select><button id="clear" class="quiet">CLEAR</button></div></div>
+      <div class="seq-scroll"><div class="seq-inner"><div class="step-header"><span>VOICE / AUDITION</span><div id="step-numbers" class="step-numbers"></div><span class="level-title">LEVEL</span></div><div id="tracks"></div></div></div>
+      <div class="seq-footer"><div class="legend"><span><i class="legend-off"></i>OFF</span><span><i class="legend-hit"></i>HIT</span><span><i class="legend-accent"></i>ACCENT</span></div><span>Click a step: hit, accent, off. <span class="desktop-help">Arrow keys move between steps.</span></span><span id="sequence-status">SOURCE PATTERN</span></div>
+    </section>
+
+    <section class="flip-panel" aria-labelledby="flip-title">
+      <div class="section-top"><div class="section-name"><span class="section-number">02</span><h2 id="flip-title">FLIP ENGINE</h2></div><div class="listen-mode" role="group" aria-label="Listen mode"><button id="original" aria-pressed="true">ORIGINAL</button><button id="flipped" aria-pressed="false">FLIPPED</button></div></div>
+      <div class="flip-body">
+        <div class="flip-action"><button id="flip" class="flip-button"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M8 13h22l-6-6m6 6-6 6M32 27H10l6 6m-6-6 6-6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="square" stroke-linejoin="miter"/></svg>FLIP</button><button id="keep" class="keep-button">KEEP THIS FLIP</button><span id="flip-status" aria-live="polite">Your source beat stays intact.</span></div>
+        <div class="flip-controls">
+          <div class="control-grid"><div class="fader"><label for="amount">AMOUNT <output id="amount-value" for="amount">65%</output></label><input id="amount" type="range" min="0" max="100" value="65"></div><div class="fader"><label for="mix">MIX <output id="mix-value" for="mix">80%</output></label><input id="mix" type="range" min="0" max="100" value="80"></div><div class="fader"><label for="repeatSwing">REPEAT SWING <output id="repeatSwing-value" for="repeatSwing">0%</output></label><input id="repeatSwing" type="range" min="0" max="75" value="0"></div></div>
+          <div class="choice-grid"><label>STUTTER / GATE SPEED<select id="speed"><option value="0">Random</option><option value="2">2 per step</option><option value="4">4 per step</option><option value="8">8 per step</option><option value="16">16 per step</option></select></label><label>AUTO FLIP<select id="auto"><option value="0">Off</option><option value="1">Every bar</option><option value="2">Every 2 bars</option><option value="4">Every 4 bars</option><option value="8">Every 8 bars</option></select></label><label class="protect"><input id="protect" type="checkbox" checked>Protect downbeat</label></div>
+          <div class="effect-palette"><span>INCLUDE</span><button data-effect="stutter" aria-pressed="true">STUTTER</button><button data-effect="reverse" aria-pressed="true">REVERSE</button><button data-effect="shuffle" aria-pressed="true">SHUFFLE</button><button data-effect="gate" aria-pressed="true">GATE</button><button data-effect="half" aria-pressed="true">HALF SPEED</button></div>
+        </div>
+      </div>
+      <div class="flip-monitor"><div class="monitor-title"><span id="monitor-label">ORIGINAL BAR</span><span id="seed-label">SEED 0909</span></div><div id="flip-map" class="flip-map" aria-label="Effect for each step"></div><canvas id="waveform" width="1400" height="90" aria-label="Waveform of the output bar" role="img"></canvas></div>
+    </section>
+    <footer class="machine-footer"><span><b>909-INSPIRED.</b> SYNTHESIZED IN YOUR BROWSER.</span><span id="audio-message" role="status">Press PLAY to turn the sound on. Edits land at bar boundaries.</span><span>BEAT FLIP / WEB 01</span></footer>
+  </main>
+  <script type="module" src="app.mjs"></script>
+</body>
+</html>

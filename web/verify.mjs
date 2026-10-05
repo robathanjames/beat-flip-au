@@ -1,0 +1,56 @@
+import assert from 'node:assert/strict';
+import { readFileSync, existsSync } from 'node:fs';
+import { performance } from 'node:perf_hooks';
+import { TRACKS, EFFECTS, groove, blankPattern, clonePattern, voice, renderDry, renderFlip, renderBar, makeFlip, variationSeed } from './engine.mjs';
+
+const settings = { tempo: 96, swing: .18, dust: .34, amount: .65, mix: .8, repeatSwing: 0, speed: 0, protect: true, effects: EFFECTS.slice(1), enabled: true, levels: [.95,.7,.55,.5,.45,.65,.6,.4], muted: Array(8).fill(false) };
+const finite = data => { for (const x of data) assert.ok(Number.isFinite(x) && Math.abs(x) <= 1, 'Audio must remain finite and bounded'); };
+const equalAudio = (a,b) => assert.deepEqual(a,b);
+let groups = 0;
+const test = (name, run) => { run(); groups++; console.log('PASS', name); };
+
+test('Eight audible synthesized voices', () => {
+  TRACKS.forEach(t => { const data = voice(t.id); finite(data); assert.ok(data.some(x => Math.abs(x) > .03), t.id + ' must produce audio'); });
+});
+test('Grooves, accents, mutes, and an empty sequence', () => {
+  for (const name of ['pocket','warehouse','broken']) { const p = groove(name); assert.equal(p.length,8); assert.ok(p.flat().some(x=>x===2)); const audio = renderDry(p, settings); finite(audio); assert.ok(audio.some(x=>Math.abs(x)>.1)); }
+  assert.ok(renderDry(blankPattern(), settings).every(x=>x===0));
+  assert.ok(renderDry(groove('pocket'), {...settings,muted:Array(8).fill(true)}).every(x=>x===0));
+  const p=blankPattern();p[0][0]=1;const normal=renderDry(p,settings);p[0][0]=2;const accent=renderDry(p,settings);assert.ok(accent.reduce((s,x)=>s+x*x,0)>normal.reduce((s,x)=>s+x*x,0));
+});
+test('Seeded flips preserve the source and repeat exactly', () => {
+  const p=groove('broken'), before=clonePattern(p);const a=renderBar(p,settings,8123),b=renderBar(p,settings,8123),c=renderBar(p,settings,9191);
+  equalAudio(a.audio,b.audio); assert.notDeepEqual(a.audio,c.audio); assert.deepEqual(p,before);finite(a.audio);assert.equal(a.flip[0].effect,0);
+});
+test('Original mode, zero Amount/Mix, and empty palette are transparent', () => {
+  const dry=renderDry(groove('pocket'),settings), flip=makeFlip(909,settings);
+  equalAudio(renderFlip(dry,flip,{...settings,enabled:false}),dry);
+  equalAudio(renderFlip(dry,flip,{...settings,mix:0}),dry);
+  equalAudio(renderFlip(dry,flip,{...settings,amount:0}),dry);
+  equalAudio(renderFlip(dry,makeFlip(909,{...settings,effects:[]}),settings),dry);
+});
+test('Every effect changes samples with fixed subdivisions and swung pulses', () => {
+  const sr=1600, dry=new Float32Array(3200); for(let i=0;i<dry.length;i++)dry[i]=Math.sin(i*.07)*.5 + i/dry.length*.1;
+  for(const effect of EFFECTS.slice(1)){
+    const s={...settings,amount:1,mix:1,protect:false,effects:[effect],speed:4,repeatSwing:.4};const f=makeFlip(10,s);
+    assert.ok(f.every(cell=>EFFECTS[cell.effect]===effect && cell.repeats===4));const audio=renderFlip(dry,f,s,sr);finite(audio);assert.notDeepEqual(audio,dry);
+  }
+  const s={...settings,amount:1,mix:1,protect:false,effects:['stutter'],speed:4};const f=makeFlip(909,s);
+  assert.notDeepEqual(renderFlip(dry,f,s,sr),renderFlip(dry,f,{...s,repeatSwing:.5},sr));
+});
+test('Tempo and sample-rate boundaries stay musical and bounded', () => {
+  for(const tempo of [60,96,180])for(const sr of [44100,48000]){
+    const a=renderBar(groove('warehouse'),{...settings,tempo,swing:.6,dust:1,repeatSwing:.75,speed:16},12345,sr);
+    assert.ok(Math.abs(a.duration-240/tempo)<1/sr);finite(a.audio);
+  }
+  assert.equal(variationSeed(909,0),909);assert.notEqual(variationSeed(909,1),909);assert.equal(variationSeed(909,1048575),909);
+});
+test('Static entrypoint has all controls and assets', () => {
+  const html=readFileSync('index.html','utf8'),app=readFileSync('app.mjs','utf8');
+  const ids=new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(x=>x[1]));
+  for(const [,id] of app.matchAll(/\$\('([^']+)'\)/g))assert.ok(ids.has(id),'Missing control: '+id);
+  for(const [,asset] of html.matchAll(/(?:src|href)="([^"#]+)"/g))if(!asset.includes(':'))assert.ok(existsSync(asset),'Missing asset: '+asset);
+  assert.equal(ids.size,[...html.matchAll(/\bid="([^"]+)"/g)].length,'IDs must be unique');
+});
+const start=performance.now();for(let i=0;i<5;i++)renderBar(groove('pocket'),settings,909+i,48000);
+console.log(`${groups} checks passed. Mean rendered bar: ${((performance.now()-start)/5).toFixed(1)} ms.`);
