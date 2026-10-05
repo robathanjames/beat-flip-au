@@ -26,11 +26,19 @@ private:
     BeatFlipLookAndFeel look;
     juce::TooltipWindow tooltips { this, 600 };
     juce::TextButton flipButton { "FLIP" };
+    juce::TextButton keepButton { "KEEP THIS PATTERN" };
     juce::ToggleButton enabledButton { "GLITCH ON" };
-    juce::Slider amount, mix, output, tempo;
-    juce::Label amountLabel, mixLabel, outputLabel, tempoLabel;
+    juce::ToggleButton protectButton { "PROTECT DOWNBEAT" };
+    std::array<juce::ToggleButton, 5> effectButtons;
+    juce::Slider amount, mix, output, tempo, swing;
+    juce::Label amountLabel, mixLabel, outputLabel, tempoLabel, swingLabel, repeatsLabel, autoFlipLabel;
+    juce::ComboBox presets, repeats, autoFlip;
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
-    std::unique_ptr<SliderAttachment> amountAttachment, mixAttachment, outputAttachment, tempoAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> enabledAttachment;
+    std::unique_ptr<SliderAttachment> amountAttachment, mixAttachment, outputAttachment, tempoAttachment, swingAttachment;
+    using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
+    using ComboAttachment = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
+    std::unique_ptr<ButtonAttachment> enabledAttachment, protectAttachment;
+    std::array<std::unique_ptr<ButtonAttachment>, 5> effectAttachments;
+    std::unique_ptr<ComboAttachment> repeatsAttachment, autoFlipAttachment;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BeatFlipEditor)
 };
