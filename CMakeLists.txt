@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(BeatFlip VERSION 0.2.0 LANGUAGES C CXX)
+project(BeatFlip VERSION 0.3.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -8,7 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(BEATFLIP_BUILD_PLUGIN "Build the macOS AU and standalone app" ON)
 set(BEATFLIP_JUCE_SOURCE_DIR "" CACHE PATH "Optional existing JUCE 8.0.15 checkout")
 
-add_library(beatflip_core STATIC Source/GlitchEngine.cpp)
+add_library(beatflip_core STATIC Source/GlitchEngine.cpp Source/DrumMachine.cpp)
 target_include_directories(beatflip_core PUBLIC Source)
 set_target_properties(beatflip_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 if(MSVC)
@@ -22,6 +22,9 @@ if(BUILD_TESTING)
     add_executable(beatflip_tests Tests/EngineTests.cpp Tests/AllocationGuard.cpp)
     target_link_libraries(beatflip_tests PRIVATE beatflip_core)
     add_test(NAME audio_engine COMMAND beatflip_tests)
+    add_executable(beatflip_drum_tests Tests/DrumTests.cpp Tests/AllocationGuard.cpp)
+    target_link_libraries(beatflip_drum_tests PRIVATE beatflip_core)
+    add_test(NAME drum_machine COMMAND beatflip_drum_tests)
 endif()
 
 add_executable(beatflip_demo EXCLUDE_FROM_ALL Tools/RenderDemo.cpp)
@@ -50,12 +53,12 @@ if(BEATFLIP_BUILD_PLUGIN)
         PLUGIN_CODE BtFp
         FORMATS AU Standalone
         PRODUCT_NAME "Beat Flip"
-        DESCRIPTION "One-button rhythmic drum glitch effect"
+        DESCRIPTION "Drum machine, sequencer and rhythmic drum glitch effect"
         IS_SYNTH FALSE
         NEEDS_MIDI_INPUT FALSE
         NEEDS_MIDI_OUTPUT FALSE
         IS_MIDI_EFFECT FALSE
-        EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+        EDITOR_WANTS_KEYBOARD_FOCUS TRUE
         MICROPHONE_PERMISSION_ENABLED TRUE
         MICROPHONE_PERMISSION_TEXT "Beat Flip needs audio input to process your drum audio in the standalone app."
         AU_MAIN_TYPE kAudioUnitType_Effect

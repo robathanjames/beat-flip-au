@@ -1,3 +1,11 @@
+# 0.3.0 — Drum Lab
+
+- Eight web-inspired synthesized drum voices and a 16-step off/hit/accent sequencer.
+- Three grooves plus Blank, voice audition, track mutes and levels, groove swing and lo-fi Dust.
+- Input/drum source selection, transport-aware playback, original/FLIP comparison, Auto Flip and KEEP.
+- Automated drum parameters and project recall; legacy projects default to external audio.
+- Allocation-free portable drum tests and native state/editor integration tests.
+
 # Changelog
 
 ## 0.2.0

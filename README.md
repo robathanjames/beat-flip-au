@@ -4,7 +4,17 @@ A one-button drum glitch effect for **Logic Pro and other macOS Audio Unit hosts
 
 Put it on a drum loop or drum bus, let a full bar play, and press **FLIP**. The plugin generates a new tempo-synced pattern of stutters, reverse slices, rearranged hits, rhythmic cuts, and half-speed fragments. Keep a pattern you like, or let Auto Flip generate variations at bar boundaries. Downbeat protection keeps the groove anchored by default.
 
-**Version 0.2.0 adds presets and performance controls.** The portable DSP engine passes behavioral and sanitizer tests. See the current [validation status](docs/VALIDATION.md) before using it in a production session. There is no finished, signed installer.
+**Version 0.3.0 adds the Drum Lab from the web app: eight synthesized voices, an editable 16-step sequencer, groove presets, track mutes and levels, Dust, and groove swing.** The portable DSP engine passes behavioral and sanitizer tests. See the current [validation status](docs/VALIDATION.md) before using it in a production session. There is no finished, signed installer.
+
+## Drum Lab
+
+Choose **Drum machine** as Audio Source, load **Dusty Pocket**, **Warehouse 909**, or **Broken Circuit**, and turn **PLAY DRUMS** on. In Logic, insert Beat Flip as an Audio FX on a track and start the host transport. The standalone runs at Free Tempo. **Blank** clears the grid. Click each step to cycle off → hit → accent. Click a voice name to audition it, use M to mute, and adjust its level slider. Muted voices are silent during audition too.
+
+The eight voices are kick, snare, clap, closed hat, open hat, low tom, rim, and ride, synthesized with the web app's voice equations. Closed hats choke open hats. Groove Swing delays alternate drum steps; Repeat Swing separately shapes the FLIP pulses. Dust combines filtering, saturation, reduced bit depth and sample hold. Pattern steps, mutes, levels and all controls are automatable and recalled with the project.
+
+Sequence a beat, let the plugin capture a full bar, then press **FLIP**. Switch **GLITCH ON** off to compare the original. Auto Flip and KEEP work on the sequenced beat. The native engine rearranges captured audio from the previous bar, so grid edits can take a bar to reach glitched slices. This retains the native effect's zero-latency live path; the web app renders whole bars ahead of playback. The two implementations share the workflow and effect families, rather than bit-identical FLIP audio. Bounce the track in your DAW to export the result.
+
+**Audio input** remains the default for compatibility with existing projects. Loading a drum groove selects the drum source. Stop drum playback before changing back to external input if you want the next drum session to remain stopped. New drum parameters use AU version hint 3; all older parameter IDs and version hints are unchanged.
 
 ## Controls
 
@@ -64,7 +74,7 @@ build-macos/BeatFlip_artefacts/Release/Standalone/Beat Flip.app
 
 The install script copies the AU to your user Audio Units folder. Quit and reopen Logic after installation, find **Rob James → Beat Flip** in the Audio FX menu, and insert it on a drum track. Use Logic's Plug-in Manager to rescan it if needed. The script stops if a previous installation already exists, so move that version aside before replacing it.
 
-The standalone app is for routing live audio into the effect; it does not load audio files itself. On a Mac, grant microphone permission if you want to use an audio input. For drum files, use the AU in Logic.
+The standalone can play the built-in drum sequencer or route live audio into the effect; it does not load audio files itself. On a Mac, grant microphone permission if you want to use an audio input. For drum files, use the AU in Logic.
 
 If you already have JUCE 8.0.15 locally, configure manually:
 
