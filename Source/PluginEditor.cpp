@@ -200,6 +200,12 @@ BeatFlipEditor::BeatFlipEditor (BeatFlipProcessor& owner) : AudioProcessorEditor
             cell.onClick=[this,tr,st]{processor.cycleDrumStep(tr,st);};
         }
     }
+    // Attachments install their own conversion callbacks. Apply display units afterwards.
+    for (auto* slider : { &amount, &mix, &swing, &dust, &grooveSwing }) {
+        slider->textFromValueFunction = [] (double value) { return juce::String (juce::roundToInt(value * 100.0)) + "%"; };
+        slider->valueFromTextFunction = [] (const juce::String& text) { return text.getDoubleValue() * .01; };
+        slider->updateText();
+    }
     timerCallback();
     startTimerHz (30);
 }
@@ -216,7 +222,7 @@ void BeatFlipEditor::timerCallback()
     for(int tr=0;tr<8;++tr) for(int st=0;st<16;++st) {
         const auto value=static_cast<int>(processor.parameters.getRawParameterValue(BeatFlipProcessor::drumStepId(tr,st))->load());
         auto& cell=drumGrid[tr][st];
-        cell.setButtonText(value==2?"!":value==1?"•":"");
+        cell.setButtonText(value==2?"!":value==1?"+":"");
         cell.setColour(juce::TextButton::buttonColourId,value==2?coral:value==1?mint.darker(.25f):panel.brighter(st==active?.35f:.05f));
     }
     repaint();
@@ -254,7 +260,7 @@ void BeatFlipEditor::paint (juce::Graphics& g)
     g.fillRoundedRectangle (28.0f, 773.0f, 1044.0f, 142.0f, 12.0f);
 
     g.setColour(muted); g.setFont(juce::FontOptions{12.0f});
-    g.drawText("OFF → HIT → ACCENT / ORIGINAL: SWITCH GLITCH OFF",30,174,770,20,juce::Justification::centredLeft);
+    g.drawText("OFF > HIT > ACCENT / ORIGINAL: SWITCH GLITCH OFF",30,174,770,20,juce::Justification::centredLeft);
     for(int i=0;i<16;++i) g.drawText(juce::String(i+1),286+i*48,185,42,18,juce::Justification::centred);
     const auto activeSeed = processor.displayedSeed.load (std::memory_order_relaxed);
     const auto requestedSeed = static_cast<std::uint32_t> (processor.parameters.getRawParameterValue ("seed")->load());
