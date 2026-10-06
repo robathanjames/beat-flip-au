@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(BeatFlip VERSION 0.3.0 LANGUAGES C CXX)
+project(BeatFlip VERSION 0.3.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -52,7 +52,7 @@ if(BEATFLIP_BUILD_PLUGIN)
         PLUGIN_MANUFACTURER_CODE Rbjm
         PLUGIN_CODE BtFp
         FORMATS AU Standalone
-        PRODUCT_NAME "Beat Flip"
+        PRODUCT_NAME "Dustbox"
         DESCRIPTION "Drum machine, sequencer and rhythmic drum glitch effect"
         IS_SYNTH FALSE
         NEEDS_MIDI_INPUT FALSE
@@ -60,7 +60,7 @@ if(BEATFLIP_BUILD_PLUGIN)
         IS_MIDI_EFFECT FALSE
         EDITOR_WANTS_KEYBOARD_FOCUS TRUE
         MICROPHONE_PERMISSION_ENABLED TRUE
-        MICROPHONE_PERMISSION_TEXT "Beat Flip needs audio input to process your drum audio in the standalone app."
+        MICROPHONE_PERMISSION_TEXT "Dustbox needs audio input to process your drum audio in the standalone app."
         AU_MAIN_TYPE kAudioUnitType_Effect
         COPY_PLUGIN_AFTER_BUILD FALSE)
 
@@ -80,7 +80,7 @@ if(BEATFLIP_BUILD_PLUGIN)
                juce::juce_recommended_warning_flags)
 
     if(BUILD_TESTING)
-        juce_add_console_app(beatflip_processor_tests PRODUCT_NAME "Beat Flip integration tests")
+        juce_add_console_app(beatflip_processor_tests PRODUCT_NAME "Dustbox integration tests")
         target_sources(beatflip_processor_tests PRIVATE Tests/ProcessorTests.cpp Tests/AllocationGuard.cpp)
         target_include_directories(beatflip_processor_tests PRIVATE Source Tests)
         target_link_libraries(beatflip_processor_tests PRIVATE BeatFlip juce::juce_audio_utils)

@@ -1,14 +1,16 @@
-# Beat Flip
+# Dustbox
 
-A one-button drum glitch effect for **Logic Pro and other macOS Audio Unit hosts**.
+A lo-fi drum machine, 16-step sequencer and beat-flipping effect for **Logic Pro and other macOS Audio Unit hosts**.
 
 Put it on a drum loop or drum bus, let a full bar play, and press **FLIP**. The plugin generates a new tempo-synced pattern of stutters, reverse slices, rearranged hits, rhythmic cuts, and half-speed fragments. Keep a pattern you like, or let Auto Flip generate variations at bar boundaries. Downbeat protection keeps the groove anchored by default.
 
-**Version 0.3.0 adds the Drum Lab from the web app: eight synthesized voices, an editable 16-step sequencer, groove presets, track mutes and levels, Dust, and groove swing.** The portable DSP engine passes behavioral and sanitizer tests. See the current [validation status](docs/VALIDATION.md) before using it in a production session. There is no finished, signed installer.
+**Version 0.3.1 introduces the Dustbox name and vintage hardware interface. Version 0.3.0 added the Drum Lab from the web app: eight synthesized voices, an editable 16-step sequencer, groove presets, track mutes and levels, Dust, and groove swing.** The portable DSP engine passes behavioral and sanitizer tests. See the current [validation status](docs/VALIDATION.md) before using it in a production session. There is no finished, signed installer.
+
+The AU identity, bundle ID and automation parameter IDs retain the original Beat Flip identifiers, so saved projects still recall the same plugin. When upgrading, move the old `Beat Flip.component` out of the Components folder before installing `Dustbox.component` to avoid duplicate AU registrations.
 
 ## Drum Lab
 
-Choose **Drum machine** as Audio Source, load **Dusty Pocket**, **Warehouse 909**, or **Broken Circuit**, and turn **PLAY DRUMS** on. In Logic, insert Beat Flip as an Audio FX on a track and start the host transport. The standalone runs at Free Tempo. **Blank** clears the grid. Click each step to cycle off → hit → accent. Click a voice name to audition it, use M to mute, and adjust its level slider. Muted voices are silent during audition too.
+Choose **Drum machine** as Audio Source, load **Dusty Pocket**, **Warehouse 909**, or **Broken Circuit**, and turn **PLAY DRUMS** on. In Logic, insert Dustbox as an Audio FX on a track and start the host transport. The standalone runs at Free Tempo. **Blank** clears the grid. Click each step to cycle off → hit → accent. Click a voice name to audition it, use M to mute, and adjust its level slider. Muted voices are silent during audition too.
 
 The eight voices are kick, snare, clap, closed hat, open hat, low tom, rim, and ride, synthesized with the web app's voice equations. Closed hats choke open hats. Groove Swing delays alternate drum steps; Repeat Swing separately shapes the FLIP pulses. Dust combines filtering, saturation, reduced bit depth and sample hold. Pattern steps, mutes, levels and all controls are automatable and recalled with the project.
 
@@ -68,11 +70,11 @@ auval -v aufx BtFp Rbjm
 The build creates a universal **Apple Silicon + Intel** AU and standalone app:
 
 ```text
-build-macos/BeatFlip_artefacts/Release/AU/Beat Flip.component
-build-macos/BeatFlip_artefacts/Release/Standalone/Beat Flip.app
+build-macos/BeatFlip_artefacts/Release/AU/Dustbox.component
+build-macos/BeatFlip_artefacts/Release/Standalone/Dustbox.app
 ```
 
-The install script copies the AU to your user Audio Units folder. Quit and reopen Logic after installation, find **Rob James → Beat Flip** in the Audio FX menu, and insert it on a drum track. Use Logic's Plug-in Manager to rescan it if needed. The script stops if a previous installation already exists, so move that version aside before replacing it.
+The install script copies the AU to your user Audio Units folder. Quit and reopen Logic after installation, find **Rob James → Dustbox** in the Audio FX menu, and insert it on a drum track. Use Logic's Plug-in Manager to rescan it if needed. The script stops if a previous installation already exists, so move that version aside before replacing it.
 
 The standalone can play the built-in drum sequencer or route live audio into the effect; it does not load audio files itself. On a Mac, grant microphone permission if you want to use an audio input. For drum files, use the AU in Logic.
 
@@ -88,7 +90,7 @@ cmake --build build-macos --config Release --parallel 4
 
 ## GitHub builds
 
-The included workflow runs portable engine tests on Linux, builds the AU on macOS, and checks preset recall, legacy project migration, KEEP, and the complete audio callback. It also renders an editor PNG under the **Beat-Flip-editor-preview** artifact. The macOS job installs the component on its runner and runs Apple's `auval`. A completed build attaches ZIPs containing the universal AU and standalone app under **Actions → Build and test Beat Flip → Artifacts**.
+The included workflow runs portable engine tests on Linux, builds the AU on macOS, and checks preset recall, legacy project migration, KEEP, and the complete audio callback. It also renders an editor PNG under the **Beat-Flip-editor-preview** artifact. The macOS job installs the component on its runner and runs Apple's `auval`. A completed build attaches ZIPs containing the universal AU and standalone app under **Actions → Build and test Dustbox → Artifacts**.
 
 Those are development builds, without Developer ID signing or notarization. Artifacts are retained even if AU validation fails; check the validation job result before installing. See [validation status](docs/VALIDATION.md).
 
