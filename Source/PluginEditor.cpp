@@ -41,7 +41,7 @@ void BeatFlipLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int
                                           float position, float start, float end, juce::Slider&)
 {
     const auto bounds = juce::Rectangle<float> (static_cast<float> (x), static_cast<float> (y),
-                                               static_cast<float> (w), static_cast<float> (h)).reduced (9.0f);
+                                               static_cast<float> (w), static_cast<float> (h)).reduced (4.0f);
     const auto radius = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
     const auto centre = bounds.getCentre();
     for (int i = 0; i < 11; ++i)
@@ -87,6 +87,7 @@ void BeatFlipLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button&
 
 void BeatFlipLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& button, bool, bool)
 {
+    if (button.getProperties().contains ("stepValue")) return;
     const auto face = button.findColour (juce::TextButton::buttonColourId);
     g.setColour (face.getBrightness() > .55f ? juce::Colour { 0xff202622 } : mint);
     g.setFont (juce::FontOptions { button.getButtonText() == "FLIP" ? 34.0f : 13.0f, juce::Font::bold });
@@ -115,6 +116,9 @@ BeatFlipEditor::BeatFlipEditor (BeatFlipProcessor& owner) : AudioProcessorEditor
         slider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
         slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 94, 22);
         addAndMakeVisible (slider);
+        slider.setColour (juce::Slider::textBoxTextColourId, amber);
+        slider.setColour (juce::Slider::textBoxBackgroundColourId, panel);
+        slider.setColour (juce::Slider::textBoxOutlineColourId, muted.withAlpha (.4f));
         label.setText (text, juce::dontSendNotification);
         label.setColour (juce::Label::textColourId, muted);
         label.setJustificationType (juce::Justification::centred);
@@ -241,7 +245,8 @@ void BeatFlipEditor::timerCallback()
     for(int tr=0;tr<8;++tr) for(int st=0;st<16;++st) {
         const auto value=static_cast<int>(processor.parameters.getRawParameterValue(BeatFlipProcessor::drumStepId(tr,st))->load());
         auto& cell=drumGrid[tr][st];
-        cell.setButtonText("");
+        cell.setButtonText(value == 2 ? "ACCENT" : value == 1 ? "HIT" : "OFF");
+        cell.setDescription(juce::String(beatflip::drumNames[tr]) + " step " + juce::String(st + 1) + ": " + cell.getButtonText());
         cell.getProperties().set("stepValue", value);
         cell.getProperties().set("activeStep", st == active);
         cell.setColour(juce::TextButton::buttonColourId,value==2?coral:value==1?mint:juce::Colour { 0xffb9bfad });
