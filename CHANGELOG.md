@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2
+
+- Refined the native and web interfaces with a cream faceplate, larger controls, restrained step indicators, and a consistent charcoal and amber palette.
+- Removed decorative wood, grain, and multicolored effect displays. Audio behavior and saved-state compatibility are unchanged.
+
 ## 0.3.1 — Dustbox
 
 - Renamed the plugin and browser drum lab to Dustbox.

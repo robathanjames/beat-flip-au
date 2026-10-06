@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#3b403d">
+  <meta name="theme-color" content="#d9d7cb">
   <meta name="description" content="Program an eight-voice lo-fi drum machine, then flip your beat into tempo-synced stutters, reverses, and new pockets.">
   <title>Dustbox · DB-09</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='3' fill='%23202622'/%3E%3Cpath d='M7 6h9c7 0 10 4 10 10s-3 10-10 10H7zm6 5v10h3c3 0 4-2 4-5s-1-5-4-5z' fill='%23ed8a3c'/%3E%3C/svg%3E">
@@ -12,8 +12,8 @@
 <body>
   <main class="machine">
     <header class="masthead">
-      <div class="brand"><span class="brand-mark" aria-hidden="true">D</span><h1>DUSTBOX<span>RHYTHM COMPOSER / DB-09</span></h1></div>
-      <div class="mast-note">PROGRAM A POCKET.<br><span>THEN TURN IT INSIDE OUT.</span></div>
+      <div class="brand"><h1>dustbox<span>RHYTHM COMPOSER</span></h1></div>
+      <div class="mast-note"><strong>DB-09</strong><span>DRUM MACHINE + FLIP ENGINE</span></div>
       <div class="power"><span id="power-led" aria-hidden="true"></span><span id="power-label">AUDIO STANDBY</span></div>
     </header>
 
@@ -27,15 +27,15 @@
     </section>
 
     <section class="sequencer" aria-labelledby="sequencer-title">
-      <div class="section-top"><div class="section-name"><span class="section-number">01</span><h2 id="sequencer-title">SEQUENCER</h2><span class="badge">16 STEPS</span></div><div class="pattern-actions"><label class="sr-only" for="groove">Starting groove</label><select id="groove"><option value="pocket">Dusty pocket</option><option value="warehouse">Warehouse 909</option><option value="broken">Broken circuit</option><option value="blank">Blank pattern</option><option value="custom" disabled>Custom pattern</option></select><button id="clear" class="quiet">CLEAR</button></div></div>
+      <div class="section-top"><div class="section-name"><h2 id="sequencer-title">SEQUENCER</h2><span class="badge">16 STEPS</span></div><div class="pattern-actions"><label class="sr-only" for="groove">Starting groove</label><select id="groove"><option value="pocket">Dusty pocket</option><option value="warehouse">Warehouse 909</option><option value="broken">Broken circuit</option><option value="blank">Blank pattern</option><option value="custom" disabled>Custom pattern</option></select><button id="clear" class="quiet">CLEAR</button></div></div>
       <div class="seq-scroll"><div class="seq-inner"><div class="step-header"><span>VOICE / AUDITION</span><div id="step-numbers" class="step-numbers"></div><span class="level-title">LEVEL</span></div><div id="tracks"></div></div></div>
       <div class="seq-footer"><div class="legend"><span><i class="legend-off"></i>OFF</span><span><i class="legend-hit"></i>HIT</span><span><i class="legend-accent"></i>ACCENT</span></div><span>Click a step: hit, accent, off. <span class="desktop-help">Arrow keys move between steps.</span></span><span id="sequence-status">SOURCE PATTERN</span></div>
     </section>
 
     <section class="flip-panel" aria-labelledby="flip-title">
-      <div class="section-top"><div class="section-name"><span class="section-number">02</span><h2 id="flip-title">FLIP ENGINE</h2></div><div class="listen-mode" role="group" aria-label="Listen mode"><button id="original" aria-pressed="true">ORIGINAL</button><button id="flipped" aria-pressed="false">FLIPPED</button></div></div>
+      <div class="section-top"><div class="section-name"><h2 id="flip-title">FLIP ENGINE</h2></div><div class="listen-mode" role="group" aria-label="Listen mode"><button id="original" aria-pressed="true">ORIGINAL</button><button id="flipped" aria-pressed="false">FLIPPED</button></div></div>
       <div class="flip-body">
-        <div class="flip-action"><button id="flip" class="flip-button"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M8 13h22l-6-6m6 6-6 6M32 27H10l6 6m-6-6 6-6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="square" stroke-linejoin="miter"/></svg>FLIP</button><button id="keep" class="keep-button">KEEP THIS FLIP</button><span id="flip-status" aria-live="polite">Your source beat stays intact.</span></div>
+        <div class="flip-action"><button id="flip" class="flip-button">FLIP</button><button id="keep" class="keep-button">KEEP THIS FLIP</button><span id="flip-status" aria-live="polite">Create a variation. Keep a good one.</span></div>
         <div class="flip-controls">
           <div class="control-grid"><div class="fader"><label for="amount">AMOUNT <output id="amount-value" for="amount">65%</output></label><input id="amount" type="range" min="0" max="100" value="65"></div><div class="fader"><label for="mix">MIX <output id="mix-value" for="mix">80%</output></label><input id="mix" type="range" min="0" max="100" value="80"></div><div class="fader"><label for="repeatSwing">REPEAT SWING <output id="repeatSwing-value" for="repeatSwing">0%</output></label><input id="repeatSwing" type="range" min="0" max="75" value="0"></div></div>
           <div class="choice-grid"><label>STUTTER / GATE SPEED<select id="speed"><option value="0">Random</option><option value="2">2 per step</option><option value="4">4 per step</option><option value="8">8 per step</option><option value="16">16 per step</option></select></label><label>AUTO FLIP<select id="auto"><option value="0">Off</option><option value="1">Every bar</option><option value="2">Every 2 bars</option><option value="4">Every 4 bars</option><option value="8">Every 8 bars</option></select></label><label class="protect"><input id="protect" type="checkbox" checked>Protect downbeat</label></div>
