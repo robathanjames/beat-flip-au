@@ -67,7 +67,15 @@ function refreshStep(tr, s) {
 function refreshTracks() {
   TRACKS.forEach((track, tr) => { for (let s = 0; s < 16; s++) refreshStep(tr, s); trackElements[tr].row.classList.toggle('muted', state.muted[tr]); trackElements[tr].mute.setAttribute('aria-pressed', state.muted[tr]); });
 }
-function fillRange(input) { input.style.setProperty('--fill', `${(Number(input.value) - Number(input.min)) / (Number(input.max) - Number(input.min)) * 100}%`); }
+document.querySelectorAll('.fader').forEach(control => {
+  const dial = document.createElement('span'); dial.className = 'dial'; dial.setAttribute('aria-hidden', 'true');
+  control.append(dial);
+});
+function fillRange(input) {
+  const fraction = (Number(input.value) - Number(input.min)) / (Number(input.max) - Number(input.min));
+  input.style.setProperty('--fill', `${fraction * 100}%`);
+  input.closest('.fader')?.style.setProperty('--rotation', `${-135 + fraction * 270}deg`);
+}
 function refreshModes() {
   $('original').setAttribute('aria-pressed', !state.enabled); $('flipped').setAttribute('aria-pressed', state.enabled);
   $('keep').disabled = !state.enabled;
@@ -93,8 +101,8 @@ function drawWaveform(data, enabled) {
   const canvas = $('waveform'), g = canvas.getContext('2d');
   if (!g) return;
   const w = canvas.width, h = canvas.height; g.clearRect(0, 0, w, h);
-  g.strokeStyle = '#39412e'; g.lineWidth = 1; g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
-  g.strokeStyle = enabled ? '#ccff78' : '#879c6e'; g.lineWidth = 1.5; g.beginPath();
+  g.strokeStyle = '#42483d'; g.lineWidth = 1; g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
+  g.strokeStyle = enabled ? '#e7a763' : '#aab2a1'; g.lineWidth = 1.5; g.beginPath();
   for (let x = 0; x < w; x += 2) {
     const from = Math.floor(x / w * data.length), to = Math.min(data.length, Math.floor((x + 2) / w * data.length));
     let low = 0, high = 0;
