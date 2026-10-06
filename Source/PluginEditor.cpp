@@ -4,41 +4,36 @@
 
 namespace
 {
-const juce::Colour background { 0xff3b403d };
-const juce::Colour panel { 0xff202622 };
-const juce::Colour muted { 0xffc8c4ae };
-const juce::Colour coral { 0xffed8a3c };
-const juce::Colour mint { 0xffe8d7a8 };
+const juce::Colour background { 0xffdedcd0 };
+const juce::Colour panel { 0xff252c27 };
+const juce::Colour muted { 0xff666b62 };
+const juce::Colour coral { 0xffdb703c };
+const juce::Colour mint { 0xffebe9de };
+const juce::Colour amber { 0xffedb577 };
 
 juce::Colour effectColour (beatflip::Effect effect)
 {
-    switch (effect)
-    {
-        case beatflip::Effect::repeat: return coral;
-        case beatflip::Effect::reverse: return juce::Colour { 0xffceaa76 };
-        case beatflip::Effect::shuffle: return mint;
-        case beatflip::Effect::gate: return juce::Colour { 0xfff0ca77 };
-        case beatflip::Effect::halfSpeed: return juce::Colour { 0xff9cb9a7 };
-        case beatflip::Effect::clean: return muted;
-    }
-    return muted;
+    return effect == beatflip::Effect::clean ? juce::Colour { 0xffaab2a1 } : amber;
 }
 }
 
 BeatFlipLookAndFeel::BeatFlipLookAndFeel()
 {
-    setColour (juce::Slider::textBoxTextColourId, juce::Colour { 0xfff3ead3 });
-    setColour (juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);
+    setColour (juce::Slider::textBoxTextColourId, amber);
+    setColour (juce::Slider::textBoxBackgroundColourId, panel);
     setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
-    setColour (juce::TextButton::buttonColourId, coral);
+    setColour (juce::TextButton::buttonColourId, mint);
     setColour (juce::TextButton::textColourOffId, background);
-    setColour (juce::ToggleButton::textColourId, juce::Colour { 0xfff3ead3 });
-    setColour (juce::ToggleButton::tickColourId, mint);
+    setColour (juce::ToggleButton::textColourId, panel);
+    setColour (juce::ToggleButton::tickColourId, coral);
+    setColour (juce::Slider::thumbColourId, mint);
+    setColour (juce::Slider::trackColourId, panel);
+    setColour (juce::Slider::backgroundColourId, muted);
     setColour (juce::ComboBox::backgroundColourId, panel);
-    setColour (juce::ComboBox::textColourId, juce::Colour { 0xfff3ead3 });
+    setColour (juce::ComboBox::textColourId, amber);
     setColour (juce::ComboBox::outlineColourId, muted.withAlpha (0.3f));
     setColour (juce::PopupMenu::backgroundColourId, panel);
-    setColour (juce::PopupMenu::textColourId, juce::Colour { 0xfff3ead3 });
+    setColour (juce::PopupMenu::textColourId, amber);
     setColour (juce::PopupMenu::highlightedBackgroundColourId, mint.darker (0.6f));
 }
 
@@ -49,33 +44,22 @@ void BeatFlipLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int
                                                static_cast<float> (w), static_cast<float> (h)).reduced (9.0f);
     const auto radius = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
     const auto centre = bounds.getCentre();
-    juce::Path track, value;
-    track.addCentredArc (centre.x, centre.y, radius - 4.0f, radius - 4.0f, 0.0f, start, end, true);
-    value.addCentredArc (centre.x, centre.y, radius - 4.0f, radius - 4.0f, 0.0f, start, start + position * (end - start), true);
     for (int i = 0; i < 11; ++i)
     {
         const auto tick = start + (end - start) * i / 10.0f;
-        g.setColour (muted.withAlpha (.65f));
+        g.setColour (muted);
         g.drawLine (centre.x + std::sin(tick) * radius, centre.y - std::cos(tick) * radius,
                     centre.x + std::sin(tick) * (radius - 3), centre.y - std::cos(tick) * (radius - 3), 1.0f);
     }
-    g.setColour (panel.brighter (0.1f));
-    g.strokePath (track, juce::PathStrokeType (4.0f));
-    g.setColour (mint);
-    g.strokePath (value, juce::PathStrokeType (4.0f));
-    g.setColour (juce::Colour { 0xff101713 });
-    g.fillEllipse (centre.x - radius + 13.0f, centre.y - radius + 13.0f, 2.0f * (radius - 13.0f), 2.0f * (radius - 13.0f));
-    for (int i = 0; i < 24; ++i)
-    {
-        const auto rib = juce::MathConstants<float>::twoPi * i / 24.0f;
-        g.setColour (muted.withAlpha (.2f));
-        g.drawLine (centre.x + std::sin(rib) * (radius - 14), centre.y - std::cos(rib) * (radius - 14),
-                    centre.x + std::sin(rib) * (radius - 17), centre.y - std::cos(rib) * (radius - 17), 1.0f);
-    }
+    const auto body = radius * .78f;
+    g.setColour (panel);
+    g.fillEllipse (centre.x - body, centre.y - body, body * 2, body * 2);
+    g.setColour (muted);
+    g.drawEllipse (centre.x - body, centre.y - body, body * 2, body * 2, 2.0f);
     const auto angle = start + position * (end - start);
-    g.setColour (juce::Colour { 0xfff3ead3 });
-    g.drawLine (centre.x + std::sin (angle) * (radius * 0.27f), centre.y - std::cos (angle) * (radius * 0.27f),
-                centre.x + std::sin (angle) * (radius * 0.62f), centre.y - std::cos (angle) * (radius * 0.62f), 2.5f);
+    g.setColour (mint);
+    g.drawLine (centre.x + std::sin (angle) * (radius * .38f), centre.y - std::cos (angle) * (radius * .38f),
+                centre.x + std::sin (angle) * (radius * .67f), centre.y - std::cos (angle) * (radius * .67f), 3.0f);
 }
 
 void BeatFlipLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& button,
@@ -83,15 +67,21 @@ void BeatFlipLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button&
 {
     const auto bounds = button.getLocalBounds().toFloat().reduced (1.0f);
     const auto face = down ? colour.darker (.22f) : over ? colour.brighter (.08f) : colour;
-    g.setColour (juce::Colour { 0xff0f1512 });
+    g.setColour (muted.withAlpha (.35f));
     g.fillRoundedRectangle (bounds.translated (0, 2), 3.0f);
-    g.setGradientFill (juce::ColourGradient (face.brighter (.12f), bounds.getTopLeft(),
-                                          face.darker (.15f), bounds.getBottomLeft(), false));
+    g.setColour (face);
     g.fillRoundedRectangle (bounds, 3.0f);
-    g.setColour (muted.withAlpha (.3f));
+    g.setColour (muted.withAlpha (.5f));
     g.drawRoundedRectangle (bounds.reduced (.5f), 3.0f, 1.0f);
-    g.setColour (juce::Colours::white.withAlpha (down ? .08f : .25f));
-    g.drawLine (bounds.getX() + 4, bounds.getY() + 2, bounds.getRight() - 4, bounds.getY() + 2);
+    if (button.getProperties().contains ("stepValue"))
+    {
+        const int value = static_cast<int> (button.getProperties()["stepValue"]);
+        const bool active = static_cast<bool> (button.getProperties()["activeStep"]);
+        g.setColour (value == 2 ? panel : value == 1 ? coral : muted.withAlpha (.35f));
+        g.fillRoundedRectangle (bounds.getCentreX() - 5, bounds.getY() + 6, 10, 3, 1.0f);
+        if (value == 2) g.fillRoundedRectangle (bounds.getCentreX() - 5, bounds.getY() + 12, 10, 3, 1.0f);
+        if (active) { g.setColour (panel); g.drawRoundedRectangle (bounds.reduced (1), 3, 2); }
+    }
 
 }
 
@@ -108,6 +98,7 @@ BeatFlipEditor::BeatFlipEditor (BeatFlipProcessor& owner) : AudioProcessorEditor
     setLookAndFeel (&look);
     setSize (1100, 940);
     addAndMakeVisible (flipButton);
+    flipButton.setColour (juce::TextButton::buttonColourId, coral);
     addAndMakeVisible (keepButton);
     addAndMakeVisible (enabledButton);
     addAndMakeVisible (protectButton);
@@ -127,7 +118,7 @@ BeatFlipEditor::BeatFlipEditor (BeatFlipProcessor& owner) : AudioProcessorEditor
         label.setText (text, juce::dontSendNotification);
         label.setColour (juce::Label::textColourId, muted);
         label.setJustificationType (juce::Justification::centred);
-        label.setFont (juce::FontOptions { 12.0f, juce::Font::bold });
+        label.setFont (juce::FontOptions { 13.0f, juce::Font::bold });
         addAndMakeVisible (label);
     };
     configure (amount, amountLabel, "AMOUNT");
@@ -202,6 +193,9 @@ BeatFlipEditor::BeatFlipEditor (BeatFlipProcessor& owner) : AudioProcessorEditor
     grooves.setTextWhenNothingSelected("LOAD DRUM GROOVE");
     grooves.onChange=[this] { if(grooves.getSelectedId()>0) processor.loadDrumGroove(grooves.getSelectedId()-1); grooves.setSelectedId(0,juce::dontSendNotification); };
     configure(dust,dustLabel,"DUST"); configure(grooveSwing,grooveSwingLabel,"GROOVE SWING");
+    dustLabel.setColour(juce::Label::textColourId,mint);
+    grooveSwingLabel.setColour(juce::Label::textColourId,mint);
+    drumPlay.setColour(juce::ToggleButton::textColourId,mint);
     for(auto* slider:{&dust,&grooveSwing}) {
         slider->textFromValueFunction=[](double v){return juce::String(juce::roundToInt(v*100))+"%";};
         slider->valueFromTextFunction=[](const juce::String& t){return t.getDoubleValue()*.01;};
@@ -247,25 +241,28 @@ void BeatFlipEditor::timerCallback()
     for(int tr=0;tr<8;++tr) for(int st=0;st<16;++st) {
         const auto value=static_cast<int>(processor.parameters.getRawParameterValue(BeatFlipProcessor::drumStepId(tr,st))->load());
         auto& cell=drumGrid[tr][st];
-        cell.setButtonText(value==2?"!":value==1?"+":"");
-        cell.setColour(juce::TextButton::buttonColourId,value==2?coral:value==1?mint.darker(.25f):panel.brighter(st==active?.35f:.05f));
+        cell.setButtonText("");
+        cell.getProperties().set("stepValue", value);
+        cell.getProperties().set("activeStep", st == active);
+        cell.setColour(juce::TextButton::buttonColourId,value==2?coral:value==1?mint:juce::Colour { 0xffb9bfad });
+        cell.repaint();
     }
     repaint();
 }
 void BeatFlipEditor::resized()
 {
-    presets.setBounds(470,32,220,30); enabledButton.setBounds(710,34,124,26);
-    source.setBounds(30,100,190,30); drumPlay.setBounds(236,100,140,30); grooves.setBounds(390,100,220,30);
-    dust.setBounds(820,76,100,80); dustLabel.setBounds(820,158,100,18);
-    grooveSwing.setBounds(948,76,120,80); grooveSwingLabel.setBounds(948,158,120,18);
+    presets.setBounds(450,34,230,32); enabledButton.setBounds(696,37,124,26);
+    source.setBounds(44,120,174,34); drumPlay.setBounds(236,120,140,34); grooves.setBounds(398,120,212,34);
+    dust.setBounds(784,100,110,80); dustLabel.setBounds(784,181,110,18);
+    grooveSwing.setBounds(922,100,138,80); grooveSwingLabel.setBounds(922,181,138,18);
     for(int tr=0;tr<8;++tr) {
-        const int y=204+tr*40;
+        const int y=232+tr*38;
         drumPads[tr].setBounds(30,y,116,32); drumMutes[tr].setBounds(152,y,38,32); drumLevels[tr].setBounds(192,y,78,32);
         for(int st=0;st<16;++st) drumGrid[tr][st].setBounds(286+st*48,y,42,32);
     }
     flipButton.setBounds(28,643,210,77); keepButton.setBounds(28,729,210,30);
-    const auto place=[](juce::Slider& slider,juce::Label& label,int x) {slider.setBounds(x,636,104,104);label.setBounds(x,744,104,18);};
-    place(amount,amountLabel,256);place(mix,mixLabel,372);place(output,outputLabel,488);place(tempo,tempoLabel,604);place(swing,swingLabel,720);
+    const auto place=[](juce::Slider& slider,juce::Label& label,int x) {slider.setBounds(x,636,144,104);label.setBounds(x,744,144,18);};
+    place(amount,amountLabel,256);place(mix,mixLabel,416);place(output,outputLabel,576);place(tempo,tempoLabel,736);place(swing,swingLabel,896);
     repeatsLabel.setBounds(44,786,164,18);repeats.setBounds(44,809,164,30);
     autoFlipLabel.setBounds(230,786,164,18);autoFlip.setBounds(230,809,164,30);protectButton.setBounds(425,810,205,28);
     for(std::size_t i=0;i<effectButtons.size();++i) effectButtons[i].setBounds(44+static_cast<int>(i)*154,874,148,28);
@@ -274,42 +271,30 @@ void BeatFlipEditor::resized()
 void BeatFlipEditor::paint (juce::Graphics& g)
 {
     g.fillAll (background);
-    // Painted metal chassis with walnut side cheeks and recessed screw heads.
-    for (int y = 1; y < getHeight(); y += 3) {
-        g.setColour (juce::Colours::white.withAlpha (.015f));
-        g.drawHorizontalLine (y, 17.0f, static_cast<float>(getWidth() - 17));
-    }
-    for (const int x : { 0, getWidth() - 17 }) {
-        g.setGradientFill (juce::ColourGradient (juce::Colour { 0xff75462c }, static_cast<float>(x), 0,
-                                              juce::Colour { 0xff342218 }, static_cast<float>(x + 17), 0, false));
-        g.fillRect (x, 0, 17, getHeight());
-        for (int grain = 2; grain < 17; grain += 4) {
-            g.setColour (juce::Colours::black.withAlpha (.16f));
-            g.drawVerticalLine (x + grain, 0, static_cast<float>(getHeight()));
-        }
-    }
-    for (const int x : { 9, getWidth() - 9 }) for (const int y : { 16, 530, 922 }) {
-        g.setColour (juce::Colour { 0xff161b18 }); g.fillEllipse (x - 4.0f, y - 4.0f, 8, 8);
-        g.setColour (muted.withAlpha (.6f)); g.drawLine (x - 2.0f, y - 2.0f, x + 2.0f, y + 2.0f);
-    }
-    g.setColour (coral);
-    g.fillRect (28, 88, 1044, 3);
     g.setColour (panel);
-    g.fillRoundedRectangle (278.0f, 199.0f, 780.0f, 326.0f, 4.0f);
-
-    g.setColour (juce::Colour { 0xfff3ead3 });
-    g.setFont (juce::FontOptions { 32.0f, juce::Font::bold });
-    g.drawText ("DUSTBOX", 28, 22, 320, 40, juce::Justification::centredLeft);
+    g.setFont (juce::FontOptions { 46.0f, juce::Font::bold });
+    g.drawText ("dustbox", 28, 16, 300, 50, juce::Justification::centredLeft);
     g.setColour (muted);
-    g.setFont (juce::FontOptions { 13.0f });
-    g.drawText ("DB-09 / RHYTHM COMPOSER & BEAT MANGLER", 30, 66, 430, 20, juce::Justification::centredLeft);
+    g.setFont (juce::FontOptions { 12.0f, juce::Font::bold });
+    g.drawText ("RHYTHM COMPOSER", 31, 66, 300, 18, juce::Justification::centredLeft);
     g.setColour (panel);
-    g.fillRoundedRectangle (28.0f, 548.0f, 1044.0f, 82.0f, 4.0f);
-    g.fillRoundedRectangle (28.0f, 773.0f, 1044.0f, 142.0f, 4.0f);
-
-    g.setColour(muted); g.setFont(juce::FontOptions{12.0f});
-    g.drawText("OFF > HIT > ACCENT / ORIGINAL: SWITCH GLITCH OFF",30,174,770,20,juce::Justification::centredLeft);
-    for(int i=0;i<16;++i) g.drawText(juce::String(i+1),286+i*48,185,42,18,juce::Justification::centred);
+    g.setFont (juce::FontOptions { 28.0f, juce::Font::bold });
+    g.drawText ("DB-09", 880, 22, 190, 36, juce::Justification::centredRight);
+    g.setFont (juce::FontOptions { 11.0f });
+    g.drawText ("DRUM MACHINE + FLIP ENGINE", 840, 62, 230, 18, juce::Justification::centredRight);
+    g.fillRect (28, 90, 1044, 2);
+    g.fillRoundedRectangle (28.0f, 104.0f, 1044.0f, 98.0f, 4.0f);
+    g.setColour (juce::Colour { 0xffcdd0c2 });
+    g.fillRoundedRectangle (28.0f, 224.0f, 1044.0f, 318.0f, 4.0f);
+    g.setColour (panel);
+    g.fillRoundedRectangle (28.0f, 554.0f, 1044.0f, 76.0f, 4.0f);
+    g.fillRect (28, 770, 1044, 1);
+    g.setColour (muted);
+    g.setFont (juce::FontOptions { 12.0f, juce::Font::bold });
+    g.drawText ("SEQUENCER", 30, 205, 160, 18, juce::Justification::centredLeft);
+    g.setFont (juce::FontOptions { 11.0f });
+    g.drawText ("CLICK: OFF / HIT / ACCENT", 30, 531, 250, 14, juce::Justification::centredLeft);
+    for(int i=0;i<16;++i) g.drawText(juce::String(i+1),286+i*48,205,42,18,juce::Justification::centred);
     const auto activeSeed = processor.displayedSeed.load (std::memory_order_relaxed);
     const auto requestedSeed = static_cast<std::uint32_t> (processor.parameters.getRawParameterValue ("seed")->load());
     const auto baseSeed = processor.displayedBaseSeed.load (std::memory_order_relaxed);
@@ -320,7 +305,7 @@ void BeatFlipEditor::paint (juce::Graphics& g)
     g.setFont (juce::FontOptions { 11.0f, juce::Font::bold });
     g.setColour (coral);
     g.drawText ("PATTERN  " + juce::String (activeSeed) + (requestedSeed != baseSeed ? "  /  FLIP QUEUED" : ""),
-                44, 550, 1000, 20, juce::Justification::centredLeft);
+                44, 556, 1000, 20, juce::Justification::centredLeft);
 
     for (int i = 0; i < beatflip::stepCount; ++i)
     {
@@ -328,12 +313,12 @@ void BeatFlipEditor::paint (juce::Graphics& g)
         const auto colour = effectColour (effect);
         const auto cell = juce::Rectangle<float> (286.0f + i * 48.0f, 576.0f, 42.0f, 34.0f);
         g.setColour (colour.withAlpha (i == step && playing && enabled ? 0.34f : 0.10f));
-        g.fillRoundedRectangle (cell, 5.0f);
+        g.fillRoundedRectangle (cell, 3.0f);
         g.setColour (colour.withAlpha (enabled ? 1.0f : 0.4f));
         g.drawRoundedRectangle (cell, 5.0f, i == step && playing && enabled ? 2.0f : 0.6f);
-        g.setFont (juce::FontOptions { 9.0f, juce::Font::bold });
+        g.setFont (juce::FontOptions { 10.0f, juce::Font::bold });
         g.drawText (beatflip::effectName (effect), cell.toNearestInt(), juce::Justification::centred);
-        g.setColour (muted);
+        g.setColour (mint.withAlpha (.65f));
         g.setFont (juce::FontOptions { 9.0f });
         g.drawText (juce::String (i + 1), static_cast<int> (cell.getX()), 611, 42, 17, juce::Justification::centred);
     }
