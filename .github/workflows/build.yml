@@ -1,4 +1,4 @@
-name: Build and test Beat Flip
+name: Build and test Dustbox
 
 on:
   push:
@@ -33,7 +33,7 @@ jobs:
       - name: Install and validate Audio Unit
         run: |
           bash scripts/install-au.sh
-          component="$HOME/Library/Audio/Plug-Ins/Components/Beat Flip.component"
+          component="$HOME/Library/Audio/Plug-Ins/Components/Dustbox.component"
           /usr/libexec/PlistBuddy -c 'Print :AudioComponents' "$component/Contents/Info.plist"
           codesign --force --sign - --timestamp=none "$component"
           killall -9 AudioComponentRegistrar || true
@@ -44,12 +44,12 @@ jobs:
         if: always() && steps.build.outcome == 'success'
         run: |
           mkdir -p dist
-          ditto -c -k --sequesterRsrc --keepParent "build-macos/BeatFlip_artefacts/Release/AU/Beat Flip.component" dist/Beat-Flip-AU-macOS.zip
-          ditto -c -k --sequesterRsrc --keepParent "build-macos/BeatFlip_artefacts/Release/Standalone/Beat Flip.app" dist/Beat-Flip-Standalone-macOS.zip
+          ditto -c -k --sequesterRsrc --keepParent "build-macos/BeatFlip_artefacts/Release/AU/Dustbox.component" dist/Dustbox-AU-macOS.zip
+          ditto -c -k --sequesterRsrc --keepParent "build-macos/BeatFlip_artefacts/Release/Standalone/Dustbox.app" dist/Dustbox-Standalone-macOS.zip
       - uses: actions/upload-artifact@v4
         if: always() && steps.build.outcome == 'success'
         with:
-          name: Beat-Flip-macOS-development-build
+          name: Dustbox-macOS-development-build
           path: dist/*.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4

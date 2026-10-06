@@ -1,3 +1,12 @@
+# Changelog
+
+## 0.3.1 — Dustbox
+
+- Renamed the plugin and browser drum lab to Dustbox.
+- Vintage hardware panels, wood cheeks, amber displays, beveled keys and ribbed rotary knobs.
+- Retained AU identity and every automation parameter ID for project compatibility.
+- Updated build packaging and installation paths; installation guards against duplicate legacy AU registrations.
+
 # 0.3.0 — Drum Lab
 
 - Eight web-inspired synthesized drum voices and a 16-step off/hit/accent sequencer.

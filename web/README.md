@@ -1,6 +1,6 @@
-# Beat Flip · Drum Lab
+# Dustbox · Drum Lab
 
-Browser-based Beat Flip with eight synthesized lo-fi 909-inspired drum voices and a 16-step sequencer.
+Browser-based Dustbox with eight synthesized lo-fi 909-inspired drum voices and a 16-step sequencer.
 
 [Play the hosted app](https://beat-flip-web.tj25h4ksw8.chatgpt.site) (owner access follows the Site sharing settings).
 
