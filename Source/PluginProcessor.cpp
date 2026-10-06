@@ -20,6 +20,15 @@ BeatFlipProcessor::BeatFlipProcessor()
     protectParameter = parameters.getRawParameterValue ("protect");
     for (std::size_t i = 0; i < effectParameters.size(); ++i)
         effectParameters[i] = parameters.getRawParameterValue (effectParameterIds[i]);
+    sourceParameter = parameters.getRawParameterValue ("source");
+    drumPlayParameter = parameters.getRawParameterValue ("drumPlay");
+    grooveSwingParameter = parameters.getRawParameterValue ("grooveSwing");
+    dustParameter = parameters.getRawParameterValue ("dust");
+    for (int tr=0; tr<8; ++tr) {
+        drumLevels[tr] = parameters.getRawParameterValue ("drumLevel" + juce::String(tr));
+        drumMutes[tr] = parameters.getRawParameterValue ("drumMute" + juce::String(tr));
+        for (int st=0; st<16; ++st) drumSteps[tr][st] = parameters.getRawParameterValue (drumStepId(tr,st));
+    }
     publishPattern();
 }
 
@@ -47,18 +56,33 @@ juce::AudioProcessorValueTreeState::ParameterLayout BeatFlipProcessor::makeParam
     const std::array<const char*, 5> names { "Use Stutter", "Use Reverse", "Use Shuffle", "Use Gate", "Use Half Speed" };
     for (std::size_t i = 0; i < effectParameterIds.size(); ++i)
         layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { effectParameterIds[i], 2 }, names[i], true));
+    layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { "source", 3 }, "Audio Source", juce::StringArray { "Audio input", "Drum machine" }, 0));
+    layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { "drumPlay", 3 }, "Drum Play", false));
+    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { "grooveSwing", 3 }, "Groove Swing", juce::NormalisableRange<float> {0.0f,.6f,.001f}, .12f));
+    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { "dust", 3 }, "Drum Dust", juce::NormalisableRange<float> {0.0f,1.0f,.001f}, .35f));
+    const auto groove = beatflip::drumGroove(0);
+    for (int tr=0; tr<8; ++tr) {
+        const auto name=juce::String(beatflip::drumNames[tr]);
+        layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { "drumLevel" + juce::String(tr), 3 }, name + " Level", juce::NormalisableRange<float> {0.0f,1.0f,.001f}, .8f));
+        layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { "drumMute" + juce::String(tr), 3 }, name + " Mute", false));
+        for (int st=0;st<16;++st)
+            layout.add (std::make_unique<juce::AudioParameterInt> (juce::ParameterID {drumStepId(tr,st),3}, name + " Step " + juce::String(st+1), 0, 2, groove[tr][st]));
+    }
     return layout;
 }
 
 void BeatFlipProcessor::prepareToPlay (double sampleRate, int)
 {
     engine.prepare (sampleRate);
+    drums.prepare (sampleRate);
+    previousDrumSource = previousDrumPlaying = false;
     setLatencySamples (0);
 }
 
 void BeatFlipProcessor::reset()
 {
     engine.reset();
+    drums.reset();
 }
 
 bool BeatFlipProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -122,7 +146,28 @@ void BeatFlipProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
 
     for (int ch = getTotalNumInputChannels(); ch < buffer.getNumChannels(); ++ch)
         buffer.clear (ch, 0, buffer.getNumSamples());
-    engine.process (buffer.getArrayOfWritePointers(), getTotalNumInputChannels(), buffer.getNumSamples(), settings, transport);
+    const bool drumSource = sourceParameter->load (std::memory_order_relaxed) >= .5f;
+    const bool drumPlaying = drumPlayParameter->load (std::memory_order_relaxed) >= .5f && transport.playing;
+    if (drumSource != previousDrumSource || (drumSource && drumPlaying != previousDrumPlaying)) {
+        engine.reset(); drums.reset();
+    }
+    previousDrumSource = drumSource; previousDrumPlaying = drumPlaying;
+    if (drumSource) {
+        beatflip::DrumSettings drumSettings;
+        drumSettings.playing = drumPlaying;
+        drumSettings.swing = grooveSwingParameter->load (std::memory_order_relaxed);
+        drumSettings.dust = dustParameter->load (std::memory_order_relaxed);
+        for (int tr=0;tr<8;++tr) {
+            drumSettings.levels[tr]=drumLevels[tr]->load (std::memory_order_relaxed);
+            drumSettings.muted[tr]=drumMutes[tr]->load (std::memory_order_relaxed)>=.5f;
+            for (int st=0;st<16;++st) drumSettings.pattern[tr][st]=static_cast<int>(drumSteps[tr][st]->load (std::memory_order_relaxed));
+        }
+        drums.process(buffer.getArrayOfWritePointers(), buffer.getNumChannels(), buffer.getNumSamples(), drumSettings, transport, auditionMask.exchange(0));
+        displayedDrumStep.store(drums.currentStep(), std::memory_order_relaxed);
+        transport.playing = drumPlaying;
+        if (!drumPlaying) settings.enabled=false;
+    } else { auditionMask.store(0); displayedDrumStep.store(-1); }
+    engine.process (buffer.getArrayOfWritePointers(), buffer.getNumChannels(), buffer.getNumSamples(), settings, transport);
     displayedStep.store (engine.getCurrentStep(), std::memory_order_relaxed);
     displayedSeed.store (engine.getActiveSeed(), std::memory_order_relaxed);
     displayedBaseSeed.store (engine.getBaseSeed(), std::memory_order_relaxed);
@@ -136,6 +181,23 @@ void BeatFlipProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
                                          * 4.0 / juce::jlimit (1, 32, transport.denominator)), std::memory_order_relaxed);
 }
 
+void BeatFlipProcessor::loadDrumGroove (int index)
+{
+    const auto groove=beatflip::drumGroove(index);
+    for (int tr=0;tr<8;++tr) for(int st=0;st<16;++st)
+        setParameterValue(drumStepId(tr,st).toRawUTF8(), static_cast<float>(groove[tr][st]));
+    setParameterValue("source",1);
+}
+void BeatFlipProcessor::cycleDrumStep (int track,int step)
+{
+    if(track<0 || track>=8 || step<0 || step>=16) return;
+    const int current=static_cast<int>(drumSteps[track][step]->load());
+    setParameterValue(drumStepId(track,step).toRawUTF8(), static_cast<float>((current+1)%3));
+}
+void BeatFlipProcessor::auditionDrum (int track)
+{
+    if(track>=0&&track<8) auditionMask.fetch_or(1u<<track);
+}
 void BeatFlipProcessor::flip()
 {
     auto* seed = parameters.getParameter ("seed");

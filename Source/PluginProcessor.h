@@ -2,6 +2,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "GlitchEngine.h"
+#include "DrumMachine.h"
 
 class BeatFlipProcessor final : public juce::AudioProcessor
 {
@@ -27,6 +28,11 @@ public:
     void getStateInformation (juce::MemoryBlock&) override;
     void setStateInformation (const void*, int) override;
 
+    void loadDrumGroove (int index);
+    void cycleDrumStep (int track, int step);
+    void auditionDrum (int track);
+    static juce::String drumStepId (int track, int step) { return "drum" + juce::String(track) + "step" + juce::String(step); }
+    std::atomic<int> displayedDrumStep { -1 };
     void flip(); // Called only by the editor/message thread.
     void keepPattern();
     void loadFactoryPreset (int index);
@@ -49,6 +55,15 @@ private:
     void setParameterValue (const char* id, float value);
     void publishPattern (float amount = 0.7f) noexcept;
     beatflip::GlitchEngine engine;
+    beatflip::DrumMachine drums;
+    std::array<std::array<std::atomic<float>*,16>,8> drumSteps {};
+    std::array<std::atomic<float>*,8> drumLevels {}, drumMutes {};
+    std::atomic<float>* sourceParameter = nullptr;
+    std::atomic<float>* drumPlayParameter = nullptr;
+    std::atomic<float>* grooveSwingParameter = nullptr;
+    std::atomic<float>* dustParameter = nullptr;
+    std::atomic<unsigned> auditionMask { 0 };
+    bool previousDrumSource = false, previousDrumPlaying = false;
     std::atomic<float>* seedParameter = nullptr;
     std::atomic<float>* amountParameter = nullptr;
     std::atomic<float>* mixParameter = nullptr;
