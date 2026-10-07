@@ -98,7 +98,7 @@ void BeatFlipLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& b
 BeatFlipEditor::BeatFlipEditor (BeatFlipProcessor& owner) : AudioProcessorEditor (owner), processor (owner)
 {
     setLookAndFeel (&look);
-    setSize (1100, 940);
+    setSize (1100, 1210);
     addAndMakeVisible (flipButton);
     flipButton.setColour (juce::TextButton::buttonColourId, coral);
     addAndMakeVisible (keepButton);
@@ -187,7 +187,7 @@ BeatFlipEditor::BeatFlipEditor (BeatFlipProcessor& owner) : AudioProcessorEditor
         presets.setSelectedId (0, juce::dontSendNotification);
     };
     addAndMakeVisible(source);
-    source.addItemList({"Audio input", "Drum machine"},1);
+    source.addItemList(processor.isInstrument() ? juce::StringArray{"Synth only", "Drum machine"} : juce::StringArray{"Audio input", "Drum machine"},1);
     source.setTooltip("Choose external audio or the built-in drum sequencer.");
     sourceAttachment=std::make_unique<ComboAttachment>(processor.parameters,"source",source);
     addAndMakeVisible(drumPlay);
@@ -233,12 +233,48 @@ BeatFlipEditor::BeatFlipEditor (BeatFlipProcessor& owner) : AudioProcessorEditor
         slider->valueFromTextFunction = [] (const juce::String& text) { return text.getDoubleValue() * .01; };
         slider->updateText();
     }
+    addAndMakeVisible(synthOn); addAndMakeVisible(synthBank); addAndMakeVisible(synthPanic); addAndMakeVisible(synthStatus); addAndMakeVisible(synthKeyboard);
+    synthBank.addItemList({"CLASSIC", "WARM", "SPECTRAL"},1);
+    synthOnAttachment=std::make_unique<ButtonAttachment>(processor.parameters,"synthEnabled",synthOn);
+    synthBankAttachment=std::make_unique<ComboAttachment>(processor.parameters,"synthBank",synthBank);
+    synthPanic.onClick=[this] { synthKeyboard.releaseAll(); processor.panicSynth(); };
+    synthPanic.setTooltip("Silence all synth voices and release the sustain pedal.");
+    synthKeyboard.noteChanged=[this](int note,bool down) {
+        if(down) if(auto* p=processor.parameters.getParameter("synthEnabled")) p->setValueNotifyingHost(1);
+        processor.queueSynthNote(note,down);
+    };
+    const std::array<const char*,8> ids {"synthPosition","synthLevel","synthTune","synthCutoff","synthAttack","synthDecay","synthSustain","synthRelease"};
+    const std::array<const char*,8> names {"WAVE POSITION","SYNTH LEVEL","TUNE","CUTOFF","ATTACK","DECAY","SUSTAIN","RELEASE"};
+    for(std::size_t i=0;i<ids.size();++i) {
+        configure(synthControls[i],synthLabels[i],names[i]);
+        synthAttachments[i]=std::make_unique<SliderAttachment>(processor.parameters,ids[i],synthControls[i]);
+        auto& slider=synthControls[i];
+        slider.textFromValueFunction=[i](double value) {
+            if(i==0 || i==1 || i==6) return juce::String(juce::roundToInt(value*100))+"%";
+            if(i==2) return juce::String(value,1)+" st";
+            if(i==3) return value>=1000 ? juce::String(value/1000,1)+" kHz" : juce::String(juce::roundToInt(value))+" Hz";
+            return value<1 ? juce::String(juce::roundToInt(value*1000))+" ms" : juce::String(value,2)+" s";
+        };
+        slider.valueFromTextFunction=[i](const juce::String& text) {
+            auto value=text.getDoubleValue();
+            if(i==0 || i==1 || i==6) value*=.01;
+            else if(i==3 && text.containsIgnoreCase("k")) value*=1000;
+            else if(i>=4 && i!=6 && text.containsIgnoreCase("ms")) value*=.001;
+            return value;
+        };
+        slider.updateText();
+    }
+    synthControls[0].setTooltip("Morph continuously across four frames in the selected wavetable bank.");
+    synthControls[2].setTooltip("Transpose the synth by up to two octaves. MIDI pitch bend adds +/- 2 semitones.");
+    if(processor.isInstrument()) source.setTooltip("Choose silence or the drum machine as the synth's backing source. This instrument has no audio input.");
     timerCallback();
     startTimerHz (30);
 }
 
 BeatFlipEditor::~BeatFlipEditor()
 {
+    synthKeyboard.releaseAll();
+    synthKeyboard.noteChanged=nullptr;
     stopTimer();
     setLookAndFeel (nullptr);
 }
@@ -279,6 +315,7 @@ void BeatFlipEditor::exportMidi()
 
 void BeatFlipEditor::timerCallback()
 {
+    synthStatus.setText(juce::String(processor.displayedVoices.load())+" / 16 VOICES",juce::dontSendNotification);
     const int active=processor.displayedDrumStep.load();
     for(int tr=0;tr<8;++tr) for(int st=0;st<16;++st) {
         const auto value=static_cast<int>(processor.parameters.getRawParameterValue(BeatFlipProcessor::drumStepId(tr,st))->load());
@@ -294,6 +331,12 @@ void BeatFlipEditor::timerCallback()
 }
 void BeatFlipEditor::resized()
 {
+    synthOn.setBounds(300,944,135,26); synthBank.setBounds(454,942,180,30); synthStatus.setBounds(670,944,170,24); synthPanic.setBounds(948,942,104,30);
+    for(std::size_t i=0;i<synthControls.size();++i) {
+        const int x=36+static_cast<int>(i)*130;
+        synthControls[i].setBounds(x,982,122,108); synthLabels[i].setBounds(x,1093,122,18);
+    }
+    synthKeyboard.setBounds(36,1124,1016,64);
     presets.setBounds(450,34,230,32); enabledButton.setBounds(696,37,124,26);
     source.setBounds(44,120,174,34); drumPlay.setBounds(236,120,140,34); grooves.setBounds(398,120,212,34);
     exportMidiButton.setBounds(634,120,130,34);
@@ -325,7 +368,7 @@ void BeatFlipEditor::paint (juce::Graphics& g)
     g.setFont (juce::FontOptions { 28.0f, juce::Font::bold });
     g.drawText ("DB-09", 880, 22, 190, 36, juce::Justification::centredRight);
     g.setFont (juce::FontOptions { 11.0f });
-    g.drawText ("DRUM MACHINE + FLIP ENGINE", 840, 62, 230, 18, juce::Justification::centredRight);
+    g.drawText ("DRUMS + WAVETABLE + FLIP ENGINE", 840, 62, 230, 18, juce::Justification::centredRight);
     g.fillRect (28, 90, 1044, 2);
     g.fillRoundedRectangle (28.0f, 104.0f, 1044.0f, 98.0f, 4.0f);
     g.setColour (juce::Colour { 0xffcdd0c2 });
@@ -370,9 +413,11 @@ void BeatFlipEditor::paint (juce::Graphics& g)
     g.setColour (muted);
     g.setFont (juce::FontOptions { 11.0f });
     g.drawText ("EFFECT PALETTE", 44, 849, 1000, 18, juce::Justification::centredLeft);
+    g.setColour(panel); g.fillRect(28,925,1044,1);
+    g.setFont(juce::FontOptions{14.0f,juce::Font::bold}); g.drawText("POLY WAVETABLE",36,940,240,30,juce::Justification::centredLeft);
     const auto sync = processor.displayedHostSync.load (std::memory_order_relaxed) ? "HOST SYNC" : "FREE RUN";
     const auto bpm = processor.displayedBpm.load (std::memory_order_relaxed);
     juce::String status = juce::String (sync) + "  /  " + juce::String (bpm, 1) + " BPM";
     status += ! playing ? "  /  PRESS PLAY" : processor.displayedCapturing.load() ? "  /  CAPTURING A BAR" : "  /  READY";
-    g.drawText (status, 28, 923, 1044, 17, juce::Justification::centredLeft);
+    g.drawText (status, 28, 1191, 1044, 17, juce::Justification::centredLeft);
 }

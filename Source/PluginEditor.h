@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PluginProcessor.h"
+#include "SynthKeyboard.h"
 #include <juce_gui_basics/juce_gui_basics.h>
 
 class BeatFlipLookAndFeel final : public juce::LookAndFeel_V4
@@ -36,6 +37,13 @@ private:
     juce::Slider amount, mix, output, tempo, swing;
     juce::Label amountLabel, mixLabel, outputLabel, tempoLabel, swingLabel, repeatsLabel, autoFlipLabel;
     juce::ComboBox presets, repeats, autoFlip, source, grooves;
+    SynthKeyboard synthKeyboard;
+    juce::ToggleButton synthOn { "SYNTH ON" };
+    juce::ComboBox synthBank;
+    juce::TextButton synthPanic { "PANIC" };
+    juce::Label synthStatus;
+    std::array<juce::Slider,8> synthControls;
+    std::array<juce::Label,8> synthLabels;
     juce::ToggleButton drumPlay { "PLAY DRUMS" };
     juce::Slider dust, grooveSwing;
     juce::Label dustLabel, grooveSwingLabel;
@@ -54,5 +62,8 @@ private:
     std::unique_ptr<SliderAttachment> dustAttachment, grooveSwingAttachment;
     std::array<std::unique_ptr<ButtonAttachment>,8> drumMuteAttachments;
     std::array<std::unique_ptr<SliderAttachment>,8> drumLevelAttachments;
+    std::unique_ptr<ButtonAttachment> synthOnAttachment;
+    std::unique_ptr<ComboAttachment> synthBankAttachment;
+    std::array<std::unique_ptr<SliderAttachment>,8> synthAttachments;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BeatFlipEditor)
 };

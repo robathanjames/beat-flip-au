@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(BeatFlip VERSION 0.3.3 LANGUAGES C CXX)
+project(BeatFlip VERSION 0.4.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -8,7 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(BEATFLIP_BUILD_PLUGIN "Build the macOS AU and standalone app" ON)
 set(BEATFLIP_JUCE_SOURCE_DIR "" CACHE PATH "Optional existing JUCE 8.0.15 checkout")
 
-add_library(beatflip_core STATIC Source/GlitchEngine.cpp Source/DrumMachine.cpp)
+add_library(beatflip_core STATIC Source/GlitchEngine.cpp Source/DrumMachine.cpp Source/WavetableSynth.cpp)
 target_include_directories(beatflip_core PUBLIC Source)
 set_target_properties(beatflip_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 if(MSVC)
@@ -28,6 +28,9 @@ if(BUILD_TESTING)
     add_executable(beatflip_midi_tests Tests/MidiExportTests.cpp)
     target_link_libraries(beatflip_midi_tests PRIVATE beatflip_core)
     add_test(NAME drum_midi_export COMMAND beatflip_midi_tests)
+    add_executable(beatflip_synth_tests Tests/SynthTests.cpp Tests/AllocationGuard.cpp)
+    target_link_libraries(beatflip_synth_tests PRIVATE beatflip_core)
+    add_test(NAME wavetable_synth COMMAND beatflip_synth_tests)
 endif()
 
 add_executable(beatflip_demo EXCLUDE_FROM_ALL Tools/RenderDemo.cpp)
@@ -49,44 +52,43 @@ if(BEATFLIP_BUILD_PLUGIN)
         FetchContent_MakeAvailable(JUCE)
     endif()
 
-    juce_add_plugin(BeatFlip
-        COMPANY_NAME "Rob James"
-        BUNDLE_ID "com.robjames.beatflip"
-        PLUGIN_MANUFACTURER_CODE Rbjm
-        PLUGIN_CODE BtFp
-        FORMATS AU Standalone
-        PRODUCT_NAME "Dustbox"
-        DESCRIPTION "Drum machine, sequencer and rhythmic drum glitch effect"
-        IS_SYNTH FALSE
-        NEEDS_MIDI_INPUT FALSE
-        NEEDS_MIDI_OUTPUT FALSE
-        IS_MIDI_EFFECT FALSE
-        EDITOR_WANTS_KEYBOARD_FOCUS TRUE
-        MICROPHONE_PERMISSION_ENABLED TRUE
-        MICROPHONE_PERMISSION_TEXT "Dustbox needs audio input to process your drum audio in the standalone app."
-        AU_MAIN_TYPE kAudioUnitType_Effect
-        COPY_PLUGIN_AFTER_BUILD FALSE)
-
-    target_sources(BeatFlip PRIVATE
-        Source/PluginProcessor.cpp
-        Source/PluginProcessor.h
-        Source/PluginEditor.cpp
-        Source/PluginEditor.h
-        Source/FactoryPresets.h)
-    target_compile_definitions(BeatFlip PUBLIC
-        JUCE_WEB_BROWSER=0
-        JUCE_USE_CURL=0)
-    target_link_libraries(BeatFlip PRIVATE
-        beatflip_core
-        juce::juce_audio_utils
-        PUBLIC juce::juce_recommended_config_flags
-               juce::juce_recommended_warning_flags)
+    set(BEATFLIP_VARIANT "both" CACHE STRING "Build both, effect, or synth variants")
+    if(NOT BEATFLIP_VARIANT MATCHES "^(both|effect|synth)$")
+        message(FATAL_ERROR "BEATFLIP_VARIANT must be both, effect, or synth")
+    endif()
+    function(add_dustbox target product code bundle synth type)
+        juce_add_plugin(${target}
+            COMPANY_NAME "Rob James" BUNDLE_ID ${bundle}
+            PLUGIN_MANUFACTURER_CODE Rbjm PLUGIN_CODE ${code}
+            FORMATS AU Standalone PRODUCT_NAME "${product}"
+            DESCRIPTION "Drum machine, polyphonic wavetable synthesizer and beat mangler"
+            IS_SYNTH ${synth} NEEDS_MIDI_INPUT ${synth} NEEDS_MIDI_OUTPUT FALSE
+            IS_MIDI_EFFECT FALSE EDITOR_WANTS_KEYBOARD_FOCUS TRUE
+            MICROPHONE_PERMISSION_ENABLED TRUE
+            MICROPHONE_PERMISSION_TEXT "Dustbox needs audio input to process audio in the effect standalone app."
+            AU_MAIN_TYPE ${type} COPY_PLUGIN_AFTER_BUILD FALSE)
+        target_sources(${target} PRIVATE Source/PluginProcessor.cpp Source/PluginProcessor.h
+            Source/PluginEditor.cpp Source/PluginEditor.h Source/SynthKeyboard.h Source/FactoryPresets.h)
+        target_compile_definitions(${target} PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+        target_link_libraries(${target} PRIVATE beatflip_core juce::juce_audio_utils
+            PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
+    endfunction()
+    if(NOT BEATFLIP_VARIANT STREQUAL "synth")
+        add_dustbox(BeatFlip "Dustbox" BtFp com.robjames.beatflip FALSE kAudioUnitType_Effect)
+        set(processor_test_target BeatFlip)
+    endif()
+    if(NOT BEATFLIP_VARIANT STREQUAL "effect")
+        add_dustbox(DustboxSynth "Dustbox Synth" DbSy com.robjames.dustbox-synth TRUE kAudioUnitType_MusicDevice)
+        if(NOT TARGET BeatFlip)
+            set(processor_test_target DustboxSynth)
+        endif()
+    endif()
 
     if(BUILD_TESTING)
         juce_add_console_app(beatflip_processor_tests PRODUCT_NAME "Dustbox integration tests")
         target_sources(beatflip_processor_tests PRIVATE Tests/ProcessorTests.cpp Tests/AllocationGuard.cpp)
         target_include_directories(beatflip_processor_tests PRIVATE Source Tests)
-        target_link_libraries(beatflip_processor_tests PRIVATE BeatFlip juce::juce_audio_utils)
+        target_link_libraries(beatflip_processor_tests PRIVATE ${processor_test_target} juce::juce_audio_utils)
         add_test(NAME plugin_state_and_editor COMMAND beatflip_processor_tests)
     endif()
 endif()

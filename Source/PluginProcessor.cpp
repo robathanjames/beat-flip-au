@@ -3,10 +3,10 @@
 #include "FactoryPresets.h"
 #include <cmath>
 
-BeatFlipProcessor::BeatFlipProcessor()
-    : AudioProcessor (BusesProperties().withInput ("Input", juce::AudioChannelSet::stereo(), true)
-                                      .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
-      parameters (*this, nullptr, "BeatFlipState", makeParameters())
+BeatFlipProcessor::BeatFlipProcessor(bool instrument)
+    : AudioProcessor ((instrument ? BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(), true)
+                      : BusesProperties().withInput("Input", juce::AudioChannelSet::stereo(), true).withOutput("Output", juce::AudioChannelSet::stereo(), true))),
+      parameters (*this, nullptr, "BeatFlipState", makeParameters(instrument)), instrumentMode(instrument)
 {
     seedParameter = parameters.getRawParameterValue ("seed");
     amountParameter = parameters.getRawParameterValue ("amount");
@@ -29,10 +29,12 @@ BeatFlipProcessor::BeatFlipProcessor()
         drumMutes[tr] = parameters.getRawParameterValue ("drumMute" + juce::String(tr));
         for (int st=0; st<16; ++st) drumSteps[tr][st] = parameters.getRawParameterValue (drumStepId(tr,st));
     }
+    const std::array<const char*,10> synthIds { "synthEnabled","synthBank","synthPosition","synthLevel","synthTune","synthAttack","synthDecay","synthSustain","synthRelease","synthCutoff" };
+    for(std::size_t i=0;i<synthIds.size();++i) synthParameters[i]=parameters.getRawParameterValue(synthIds[i]);
     publishPattern();
 }
 
-juce::AudioProcessorValueTreeState::ParameterLayout BeatFlipProcessor::makeParameters()
+juce::AudioProcessorValueTreeState::ParameterLayout BeatFlipProcessor::makeParameters(bool instrument)
 {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
     layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { "enabled", 1 }, "Glitch Enabled", false));
@@ -68,6 +70,19 @@ juce::AudioProcessorValueTreeState::ParameterLayout BeatFlipProcessor::makeParam
         for (int st=0;st<16;++st)
             layout.add (std::make_unique<juce::AudioParameterInt> (juce::ParameterID {drumStepId(tr,st),3}, name + " Step " + juce::String(st+1), 0, 2, groove[tr][st]));
     }
+    layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"synthEnabled",4}, "Synth On", instrument));
+    layout.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"synthBank",4}, "Wavetable Bank", juce::StringArray{"Classic","Warm","Spectral"},0));
+    const auto addSynth = [&layout](const char* id,const char* name,float lo,float hi,float initial,float skew=1) {
+        layout.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{id,4},name,juce::NormalisableRange<float>{lo,hi,.001f,skew},initial));
+    };
+    addSynth("synthPosition","Wave Position",0,1,.35f);
+    addSynth("synthLevel","Synth Level",0,1,.65f);
+    addSynth("synthTune","Synth Tune",-24,24,0);
+    addSynth("synthAttack","Synth Attack",.001f,4,.01f,.3f);
+    addSynth("synthDecay","Synth Decay",.005f,4,.25f,.3f);
+    addSynth("synthSustain","Synth Sustain",0,1,.65f);
+    addSynth("synthRelease","Synth Release",.01f,8,.5f,.3f);
+    addSynth("synthCutoff","Synth Cutoff",40,20000,9000,.25f);
     return layout;
 }
 
@@ -75,6 +90,9 @@ void BeatFlipProcessor::prepareToPlay (double sampleRate, int)
 {
     engine.prepare (sampleRate);
     drums.prepare (sampleRate);
+    synth.prepare(sampleRate);
+    previousSynthEnabled=false;
+    guiRead.store(guiWrite.load());
     previousDrumSource = previousDrumPlaying = false;
     setLatencySamples (0);
 }
@@ -83,16 +101,18 @@ void BeatFlipProcessor::reset()
 {
     engine.reset();
     drums.reset();
+    synth.reset();
+    guiRead.store(guiWrite.load());
 }
 
 bool BeatFlipProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
     const auto output = layouts.getMainOutputChannelSet();
     return (output == juce::AudioChannelSet::mono() || output == juce::AudioChannelSet::stereo())
-        && layouts.getMainInputChannelSet() == output;
+        && (instrumentMode ? layouts.getMainInputChannelSet().isDisabled() : layouts.getMainInputChannelSet() == output);
 }
 
-void BeatFlipProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+void BeatFlipProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     juce::ScopedNoDenormals noDenormals;
     beatflip::Settings settings;
@@ -146,6 +166,7 @@ void BeatFlipProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
 
     for (int ch = getTotalNumInputChannels(); ch < buffer.getNumChannels(); ++ch)
         buffer.clear (ch, 0, buffer.getNumSamples());
+    const bool hostPlaying=transport.playing;
     const bool drumSource = sourceParameter->load (std::memory_order_relaxed) >= .5f;
     const bool drumPlaying = drumPlayParameter->load (std::memory_order_relaxed) >= .5f && transport.playing;
     if (drumSource != previousDrumSource || (drumSource && drumPlaying != previousDrumPlaying)) {
@@ -167,6 +188,39 @@ void BeatFlipProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
         transport.playing = drumPlaying;
         if (!drumPlaying) settings.enabled=false;
     } else { auditionMask.store(0); displayedDrumStep.store(-1); }
+    const bool synthEnabled=synthParameters[0]->load()>=.5f;
+    if(synthEnabled!=previousSynthEnabled) { synth.reset(); engine.reset(); }
+    previousSynthEnabled=synthEnabled;
+    if(panicRequested.exchange(false)) { synth.allSoundOff(); guiRead.store(guiWrite.load()); }
+    beatflip::SynthSettings synthSettings;
+    synthSettings.bank=static_cast<int>(synthParameters[1]->load());
+    synthSettings.position=synthParameters[2]->load(); synthSettings.level=synthParameters[3]->load();
+    synthSettings.tune=synthParameters[4]->load(); synthSettings.attack=synthParameters[5]->load();
+    synthSettings.decay=synthParameters[6]->load(); synthSettings.sustain=synthParameters[7]->load();
+    synthSettings.release=synthParameters[8]->load(); synthSettings.cutoff=synthParameters[9]->load();
+    synth.setSettings(synthSettings);
+    auto read=guiRead.load(std::memory_order_relaxed);
+    const auto write=guiWrite.load(std::memory_order_acquire);
+    while(read!=write) {
+        const auto event=guiNotes[read];
+        if(synthEnabled) { if(event.down) synth.noteOn(1,event.note,.8f); else synth.noteOff(1,event.note); }
+        read=(read+1)%static_cast<unsigned>(guiNotes.size());
+    }
+    guiRead.store(read,std::memory_order_release);
+    if(synthEnabled) {
+        int rendered=0;
+        if(instrumentMode) for(const auto metadata:midi) {
+            const int position=juce::jlimit(rendered,buffer.getNumSamples(),metadata.samplePosition);
+            synth.render(buffer.getArrayOfWritePointers(),buffer.getNumChannels(),rendered,position-rendered);
+            if(metadata.numBytes<=3) handleSynthMidi(metadata.getMessage());
+            rendered=position;
+        }
+        synth.render(buffer.getArrayOfWritePointers(),buffer.getNumChannels(),rendered,buffer.getNumSamples()-rendered);
+        // Drum Play must not stop the keyboard layer; host transport still clocks FLIP.
+        if(drumSource) { transport.playing=hostPlaying; settings.enabled=enabledParameter->load()>=.5f; }
+    }
+    if(instrumentMode) midi.clear();
+    displayedVoices.store(synth.activeVoices());
     engine.process (buffer.getArrayOfWritePointers(), buffer.getNumChannels(), buffer.getNumSamples(), settings, transport);
     displayedStep.store (engine.getCurrentStep(), std::memory_order_relaxed);
     displayedSeed.store (engine.getActiveSeed(), std::memory_order_relaxed);
@@ -179,6 +233,28 @@ void BeatFlipProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
     const auto safeBpm = std::isfinite (transport.bpm) ? juce::jlimit (20.0, 400.0, transport.bpm) : 120.0;
     displayedBarSeconds.store (juce::jmin (16.0, 60.0 / safeBpm * juce::jlimit (1, 32, transport.numerator)
                                          * 4.0 / juce::jlimit (1, 32, transport.denominator)), std::memory_order_relaxed);
+}
+
+void BeatFlipProcessor::queueSynthNote(int note,bool down) noexcept
+{
+    if(note<0 || note>127) return;
+    const auto write=guiWrite.load(std::memory_order_relaxed);
+    const auto next=(write+1)%static_cast<unsigned>(guiNotes.size());
+    if(next==guiRead.load(std::memory_order_acquire)) { panicRequested.store(true); return; }
+    guiNotes[write]={note,down}; guiWrite.store(next,std::memory_order_release);
+}
+void BeatFlipProcessor::handleSynthMidi(const juce::MidiMessage& message) noexcept
+{
+    const int channel=message.getChannel();
+    if(message.isNoteOn()) synth.noteOn(channel,message.getNoteNumber(),message.getFloatVelocity());
+    else if(message.isNoteOff()) synth.noteOff(channel,message.getNoteNumber());
+    else if(message.isPitchWheel()) synth.pitchWheel(channel,message.getPitchWheelValue());
+    else if(message.isController()) {
+        if(message.getControllerNumber()==64) synth.sustainPedal(channel,message.getControllerValue()>=64);
+        else if(message.getControllerNumber()==120) synth.allSoundOff(channel);
+        else if(message.getControllerNumber()==123) synth.allNotesOff(channel);
+        else if(message.getControllerNumber()==121) { synth.sustainPedal(channel,false); synth.pitchWheel(channel,8192); }
+    }
 }
 
 void BeatFlipProcessor::loadDrumGroove (int index)
@@ -295,5 +371,5 @@ void BeatFlipProcessor::setStateInformation (const void* data, int size)
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
-    return new BeatFlipProcessor();
+    return new BeatFlipProcessor(JucePlugin_IsSynth != 0);
 }

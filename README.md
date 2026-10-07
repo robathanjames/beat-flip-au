@@ -1,6 +1,6 @@
 # Dustbox
 
-A lo-fi drum machine, 16-step sequencer and beat-flipping effect for **Logic Pro and other macOS Audio Unit hosts**.
+A lo-fi drum machine, 16-step sequencer, 16-voice wavetable synthesizer and beat-flipping effect for **Logic Pro and other macOS Audio Unit hosts**.
 
 ![Dustbox DB-09 plugin interface](docs/screenshots/dustbox-db09.png)
 
@@ -11,6 +11,16 @@ Put it on a drum loop or drum bus, let a full bar play, and press **FLIP**. The 
 **Version 0.3.1 introduces the Dustbox name and vintage hardware interface. Version 0.3.0 added the Drum Lab from the web app: eight synthesized voices, an editable 16-step sequencer, groove presets, track mutes and levels, Dust, and groove swing.** The portable DSP engine passes behavioral and sanitizer tests. See the current [validation status](docs/VALIDATION.md) before using it in a production session. There is no finished, signed installer.
 
 The AU identity, bundle ID and automation parameter IDs retain the original Beat Flip identifiers, so saved projects still recall the same plugin. When upgrading, move the old `Beat Flip.component` out of the Components folder before installing `Dustbox.component` to avoid duplicate AU registrations.
+
+## Wavetable synth — version 0.4.0
+
+**Dustbox Synth** is a separate MIDI-playable AU instrument. In Logic, create a Software Instrument track and select **Rob James → Dustbox Synth** in the Instrument slot. Play a MIDI keyboard or record notes into a MIDI region. The original **Dustbox** Audio FX keeps its existing AU identity and defaults, so older projects retain their sound.
+
+The new synth panel provides **16 voices**, velocity-sensitive notes, **Classic / Warm / Spectral** banks, continuously morphing Wave Position, Level, ±24-semitone Tune, low-pass Cutoff and **Attack / Decay / Sustain / Release**. Each bank has four interpolated frames and band-limited tables. Classic moves from sine through triangle and saw to square. MIDI pitch bend spans ±2 semitones; CC64 controls sustain. **PANIC** immediately clears held voices. All ten synth parameters support automation and project recall.
+
+Click or drag the two-octave keyboard to play, or focus it and use **A W S E D F T G Y H U J K** for one chromatic octave. Clicking a key enables the synth. Both standalone apps support the on-screen keyboard; choose a MIDI input in the Synth standalone's audio/MIDI settings to use external keys. The synth is enabled by default in the instrument and disabled by default in the effect. The original effect does not receive host MIDI.
+
+Select **Synth only** in the instrument, or **Drum machine** to combine notes with the drum sequencer. The synth mixes before FLIP, so chords and drum patterns can be captured and rearranged together. Start Logic's transport, play a complete bar, then press FLIP. Notes remain playable with the transport stopped; FLIP waits for playback and captured audio. Drum PLAY is independent of the synth keyboard. EXPORT MIDI continues to export the drum grid; record synth notes in Logic and bounce for processed audio.
 
 ## Drum Lab
 
@@ -88,16 +98,21 @@ cd beat-flip-au
 bash scripts/build-macos.sh
 bash scripts/install-au.sh
 auval -v aufx BtFp Rbjm
+auval -v aumu DbSy Rbjm
 ```
 
-The build creates a universal **Apple Silicon + Intel** AU and standalone app:
+The default build creates both universal **Apple Silicon + Intel** AUs and standalone apps:
 
 ```text
 build-macos/BeatFlip_artefacts/Release/AU/Dustbox.component
 build-macos/BeatFlip_artefacts/Release/Standalone/Dustbox.app
+build-macos/DustboxSynth_artefacts/Release/AU/Dustbox Synth.component
+build-macos/DustboxSynth_artefacts/Release/Standalone/Dustbox Synth.app
 ```
 
-The install script copies the AU to your user Audio Units folder. Quit and reopen Logic after installation, find **Rob James → Dustbox** in the Audio FX menu, and insert it on a drum track. Use Logic's Plug-in Manager to rescan it if needed. The script stops if a previous installation already exists, so move that version aside before replacing it.
+To build and install only the instrument, use `DUSTBOX_VARIANT=synth bash scripts/build-macos.sh` then `bash scripts/install-au.sh synth`. Use `effect` for only the original effect.
+
+The install script copies the AUs to your user Audio Units folder. Quit and reopen Logic after installation, find **Rob James → Dustbox** in the Audio FX menu, and insert it on a drum track. Use Logic's Plug-in Manager to rescan it if needed. The script stops if a previous installation already exists, so move that version aside before replacing it.
 
 The standalone can play the built-in drum sequencer or route live audio into the effect; it does not load audio files itself. On a Mac, grant microphone permission if you want to use an audio input. For drum files, use the AU in Logic.
 
@@ -113,7 +128,7 @@ cmake --build build-macos --config Release --parallel 4
 
 ## GitHub builds
 
-The included workflow runs portable engine tests on Linux, builds the AU on macOS, and checks preset recall, legacy project migration, KEEP, and the complete audio callback. It also renders an editor PNG under the **Beat-Flip-editor-preview** artifact. The macOS job installs the component on its runner and runs Apple's `auval`. A completed build attaches ZIPs containing the universal AU and standalone app under **Actions → Build and test Dustbox → Artifacts**.
+The included workflow runs portable engine tests on Linux, builds both AUs on macOS, and checks preset recall, legacy project migration, KEEP, and the complete audio callback. It also renders an editor PNG under **Beat-Flip-editor-preview**. Processor integration tests exercise both effect and instrument modes. The macOS job installs the component on its runner and runs Apple's `auval`. A completed build attaches ZIPs containing the universal AU and standalone app under **Actions → Build and test Dustbox → Artifacts**.
 
 Those are development builds, without Developer ID signing or notarization. Artifacts are retained even if AU validation fails; check the validation job result before installing. See [validation status](docs/VALIDATION.md).
 
@@ -156,12 +171,14 @@ It needs a fully captured bar before slices become available. Starting playback 
 
 Slice transitions have short ramps; mix and output changes are smoothed. Both channels share the same pattern and timing. Audio processing performs no allocations, locking, file I/O, or UI calls. Parameters and the seed are saved by JUCE's `AudioProcessorValueTreeState`; recorded audio is captured fresh when playback starts.
 
-This is an **audio effect**, so it changes what you hear and what you bounce. It does not rewrite the drum region, create MIDI notes, or send live MIDI to another instrument. The built-in drum grid can be exported as a MIDI file using EXPORT MIDI. To keep a result as audio, bounce the processed track in your DAW.
+The FLIP stage changes audio that you hear and bounce. It does not rewrite MIDI regions or send live MIDI to another instrument. Dustbox Synth receives MIDI to generate its own notes. The built-in drum grid can be exported as a MIDI file using EXPORT MIDI. To keep a result as audio, bounce the processed track in your DAW.
 
 ## Project layout
 
 | Path | Purpose |
 | --- | --- |
+| `Source/WavetableSynth.*` | Portable polyphonic wavetable engine. |
+| `Source/SynthKeyboard.h` | On-screen and computer-keyboard note input. |
 | `Source/GlitchEngine.*` | Portable pattern generator and DSP. |
 | `Source/PluginProcessor.*` | AU parameters, transport, state, and audio processing. |
 | `Source/PluginEditor.*` | Performance controls, presets, and live pattern grid. |
