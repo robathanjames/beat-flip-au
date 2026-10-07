@@ -2,6 +2,10 @@
 
 A lo-fi drum machine, 16-step sequencer and beat-flipping effect for **Logic Pro and other macOS Audio Unit hosts**.
 
+![Dustbox DB-09 plugin interface](docs/screenshots/dustbox-db09.png)
+
+[Interface screenshot and version 0.3.2 verification](docs/screenshots/README.md)
+
 Put it on a drum loop or drum bus, let a full bar play, and press **FLIP**. The plugin generates a new tempo-synced pattern of stutters, reverse slices, rearranged hits, rhythmic cuts, and half-speed fragments. Keep a pattern you like, or let Auto Flip generate variations at bar boundaries. Downbeat protection keeps the groove anchored by default.
 
 **Version 0.3.1 introduces the Dustbox name and vintage hardware interface. Version 0.3.0 added the Drum Lab from the web app: eight synthesized voices, an editable 16-step sequencer, groove presets, track mutes and levels, Dust, and groove swing.** The portable DSP engine passes behavioral and sanitizer tests. See the current [validation status](docs/VALIDATION.md) before using it in a production session. There is no finished, signed installer.
