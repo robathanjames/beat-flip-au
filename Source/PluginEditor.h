@@ -22,6 +22,9 @@ public:
 
 private:
     void timerCallback() override;
+    void exportMidi();
+    std::unique_ptr<juce::FileChooser> midiChooser;
+    juce::TextButton exportMidiButton { "EXPORT MIDI" };
     BeatFlipProcessor& processor;
     BeatFlipLookAndFeel look;
     juce::TooltipWindow tooltips { this, 600 };

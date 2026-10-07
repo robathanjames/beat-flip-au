@@ -58,6 +58,25 @@ Auto Flip derives a repeatable sequence from the saved base seed. It advances ac
 
 Palette, speed and downbeat changes also take effect at the next grid cell. The grid shows the engine's active pattern. Existing 0.1 projects retain their original controls and load the new controls with their original-sound defaults.
 
+## Export drum MIDI to Logic
+
+Click **EXPORT MIDI** to save the current drum grid as a Standard MIDI File (`.mid`). It contains one complete 4/4 bar at 960 ticks per quarter note, on MIDI channel 10. Groove Swing shifts alternate sixteenth notes; accents and track levels become velocities. Muted tracks and zero-level tracks are omitted. The file captures the grid when you click Export and works with playback stopped. It includes the current host tempo when synced, or Free Tempo otherwise.
+
+Drag the file into the Tracks area on a software instrument track loaded with a drum kit, such as Drum Machine Designer. Loop the resulting MIDI region to repeat the pattern. Kit mappings can vary; use this note map to assign pads if needed:
+
+| Voice | MIDI note number |
+| --- | --- |
+| Kick | 36 |
+| Snare | 38 |
+| Clap | 39 |
+| Closed hat | 42 |
+| Open hat | 46 |
+| Low tom | 41 |
+| Rim | 37 |
+| Ride | 51 |
+
+MIDI exports the **source sequence**. Dustbox's drum sounds, Dust processing, FLIP slice effects and output mix are audio processing; bounce the track in Logic to retain those sounds. Export uses a four-quarter-note bar even if the host project uses a different meter.
+
 ## Build on your Mac
 
 Requires Xcode or Xcode Command Line Tools, CMake 3.22 or later, Git, and an internet connection for the first JUCE download. [Get CMake](https://cmake.org/download/). If you use Homebrew, `brew install cmake` installs it.
@@ -137,7 +156,7 @@ It needs a fully captured bar before slices become available. Starting playback 
 
 Slice transitions have short ramps; mix and output changes are smoothed. Both channels share the same pattern and timing. Audio processing performs no allocations, locking, file I/O, or UI calls. Parameters and the seed are saved by JUCE's `AudioProcessorValueTreeState`; recorded audio is captured fresh when playback starts.
 
-This is an **audio effect**, so it changes what you hear and what you bounce. It does not rewrite the drum region, create MIDI notes, or export a new Logic pattern. To keep a result as audio, bounce the processed track in your DAW.
+This is an **audio effect**, so it changes what you hear and what you bounce. It does not rewrite the drum region, create MIDI notes, or send live MIDI to another instrument. The built-in drum grid can be exported as a MIDI file using EXPORT MIDI. To keep a result as audio, bounce the processed track in your DAW.
 
 ## Project layout
 

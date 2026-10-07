@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(BeatFlip VERSION 0.3.2 LANGUAGES C CXX)
+project(BeatFlip VERSION 0.3.3 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -25,6 +25,9 @@ if(BUILD_TESTING)
     add_executable(beatflip_drum_tests Tests/DrumTests.cpp Tests/AllocationGuard.cpp)
     target_link_libraries(beatflip_drum_tests PRIVATE beatflip_core)
     add_test(NAME drum_machine COMMAND beatflip_drum_tests)
+    add_executable(beatflip_midi_tests Tests/MidiExportTests.cpp)
+    target_link_libraries(beatflip_midi_tests PRIVATE beatflip_core)
+    add_test(NAME drum_midi_export COMMAND beatflip_midi_tests)
 endif()
 
 add_executable(beatflip_demo EXCLUDE_FROM_ALL Tools/RenderDemo.cpp)
