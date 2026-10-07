@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.3
+
+- Add EXPORT MIDI to the native editor: one-bar source sequence with standard drum note numbers, swing, velocity accents, track levels, mutes and tempo metadata. Save safely using an asynchronous file chooser.
+- Document importing the file onto a Logic drum instrument track and the distinction between source notes and FLIP audio effects.
+
 ## 0.3.2
 
 - Refined the native and web interfaces with a cream faceplate, larger controls, restrained step indicators, and a consistent charcoal and amber palette.
