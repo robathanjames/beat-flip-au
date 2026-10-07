@@ -3,11 +3,16 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "GlitchEngine.h"
 #include "DrumMachine.h"
+#include "WavetableSynth.h"
 
 class BeatFlipProcessor final : public juce::AudioProcessor
 {
 public:
-    BeatFlipProcessor();
+    explicit BeatFlipProcessor(bool instrument = false);
+    bool isInstrument() const noexcept { return instrumentMode; }
+    void queueSynthNote(int note, bool down) noexcept;
+    void panicSynth() noexcept { panicRequested.store(true); }
+    std::atomic<int> displayedVoices { 0 };
     void prepareToPlay (double sampleRate, int maximumBlockSize) override;
     void releaseResources() override {}
     void reset() override;
@@ -15,11 +20,11 @@ public:
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
-    const juce::String getName() const override { return "Dustbox"; }
-    bool acceptsMidi() const override { return false; }
+    const juce::String getName() const override { return instrumentMode ? "Dustbox Synth" : "Dustbox"; }
+    bool acceptsMidi() const override { return instrumentMode; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
-    double getTailLengthSeconds() const override { return displayedBarSeconds.load (std::memory_order_relaxed) * 2.0; }
+    double getTailLengthSeconds() const override { return juce::jmax(displayedBarSeconds.load(std::memory_order_relaxed)*2.0, synthParameters[0]->load()>=.5f ? static_cast<double>(synthParameters[8]->load())*1.5 : 0.0); }
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
     void setCurrentProgram (int) override {}
@@ -51,11 +56,20 @@ public:
     std::atomic<double> displayedBarSeconds { 2.0 };
 
 private:
-    static juce::AudioProcessorValueTreeState::ParameterLayout makeParameters();
+    static juce::AudioProcessorValueTreeState::ParameterLayout makeParameters(bool instrument);
     void setParameterValue (const char* id, float value);
     void publishPattern (float amount = 0.7f) noexcept;
     beatflip::GlitchEngine engine;
     beatflip::DrumMachine drums;
+    beatflip::WavetableSynth synth;
+    const bool instrumentMode;
+    bool previousSynthEnabled = false;
+    struct GuiNote { int note = 60; bool down = false; };
+    std::array<GuiNote,256> guiNotes {};
+    std::atomic<unsigned> guiWrite { 0 }, guiRead { 0 };
+    std::atomic<bool> panicRequested { false };
+    std::array<std::atomic<float>*,10> synthParameters {};
+    void handleSynthMidi(const juce::MidiMessage&) noexcept;
     std::array<std::array<std::atomic<float>*,16>,8> drumSteps {};
     std::array<std::atomic<float>*,8> drumLevels {}, drumMutes {};
     std::atomic<float>* sourceParameter = nullptr;
