@@ -128,7 +128,7 @@ cmake --build build-macos --config Release --parallel 4
 
 ## GitHub builds
 
-The included workflow runs portable engine tests on Linux, builds the AU on macOS, and checks preset recall, legacy project migration, KEEP, and the complete audio callback. It also renders editor PNGs under **Dustbox-effect-editor-preview** and **Dustbox-synth-editor-preview**. Both native variants run processor integration tests. The macOS job installs the component on its runner and runs Apple's `auval`. A completed build attaches ZIPs containing the universal AU and standalone app under **Actions → Build and test Dustbox → Artifacts**.
+The included workflow runs portable engine tests on Linux, builds both AUs on macOS, and checks preset recall, legacy project migration, KEEP, and the complete audio callback. It also renders an editor PNG under **Beat-Flip-editor-preview**. Processor integration tests exercise both effect and instrument modes. The macOS job installs the component on its runner and runs Apple's `auval`. A completed build attaches ZIPs containing the universal AU and standalone app under **Actions → Build and test Dustbox → Artifacts**.
 
 Those are development builds, without Developer ID signing or notarization. Artifacts are retained even if AU validation fails; check the validation job result before installing. See [validation status](docs/VALIDATION.md).
 
