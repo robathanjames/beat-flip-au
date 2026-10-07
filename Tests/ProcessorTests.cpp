@@ -32,7 +32,7 @@ void stateRecallAndLegacyDefaults()
     for (auto* parameter : original.getParameters())
     {
         const auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter);
-        require (parameter->getVersionHint() == (oldParameterIds.contains (ranged->getParameterID()) ? 1 : ranged->getParameterID().startsWith("drum") || ranged->getParameterID() == "source" || ranged->getParameterID() == "dust" || ranged->getParameterID() == "grooveSwing" ? 3 : 2),
+        require (parameter->getVersionHint() == (oldParameterIds.contains (ranged->getParameterID()) ? 1 : ranged->getParameterID().startsWith("synth") ? 4 : ranged->getParameterID().startsWith("drum") || ranged->getParameterID() == "source" || ranged->getParameterID() == "dust" || ranged->getParameterID() == "grooveSwing" ? 3 : 2),
                  "Existing AU parameter ordering must retain its original version hints");
     }
     setValue (original, "tempo", 137.5f);
@@ -69,6 +69,7 @@ void stateRecallAndLegacyDefaults()
     require (value (restored, "swing") == 0.0f && value (restored, "repeats") == 0.0f
              && value (restored, "autoFlip") == 0.0f && value (restored, "protect") == 1.0f,
              "Legacy projects must restore the original pattern defaults");
+    require(value(restored,"synthEnabled")==0,"Legacy effect projects must keep synthesis disabled");
     require(value(restored,"source")==0 && value(restored,"drumPlay")==0,"Legacy projects must use audio input with drums stopped");
     for (const auto* id : BeatFlipProcessor::effectParameterIds)
         require (value (restored, id) == 1.0f, "Legacy projects must enable the full original effect palette");
@@ -127,9 +128,37 @@ void drumStateAndProcessing()
     require(value(restored,"source")==1,"Loading a drum groove must select the drum source");
 }
 
+void synthMidiAndState()
+{
+    BeatFlipProcessor instrument(true);
+    require(instrument.acceptsMidi() && instrument.getTotalNumInputChannels()==0,"Instrument accepts MIDI with no input bus");
+    require(!BeatFlipProcessor().acceptsMidi(),"Legacy FX keeps its original MIDI contract");
+    instrument.prepareToPlay(48000,256);
+    setValue(instrument,"synthPosition",.76f); setValue(instrument,"synthBank",2); setValue(instrument,"synthRelease",.01f);
+    juce::AudioBuffer<float> audio(2,256); juce::MidiBuffer midi;
+    midi.ensureSize(2048); midi.addEvent(juce::MidiMessage::noteOn(1,60,1.0f),64);
+    midi.addEvent(juce::MidiMessage::noteOn(1,64,.8f),96);
+    midi.addEvent(juce::MidiMessage::noteOn(1,67,.7f),128);
+    const juce::uint8 sysex[32] {}; midi.addEvent(juce::MidiMessage::createSysExMessage(sysex,32),180);
+    allocationGuard::start(); instrument.processBlock(audio,midi); const auto allocations=allocationGuard::stop();
+    require(allocations==0,"MIDI synthesis including ignored SysEx must allocate no audio-thread memory");
+    require(audio.getMagnitude(0,64)==0 && audio.getMagnitude(64,192)>0,"MIDI note timing must be sample accurate");
+    require(instrument.displayedVoices.load()==3 && midi.isEmpty(),"Instrument plays a chord without MIDI output");
+    juce::MemoryBlock state; instrument.getStateInformation(state);
+    BeatFlipProcessor restored(true); restored.setStateInformation(state.getData(),static_cast<int>(state.getSize()));
+    for(const auto* id:{"synthEnabled","synthBank","synthPosition","synthLevel","synthTune","synthAttack","synthDecay","synthSustain","synthRelease","synthCutoff"})
+        require(value(instrument,id)==value(restored,id),"Every synth control survives project recall");
+    instrument.panicSynth(); instrument.processBlock(audio,midi);
+    require(instrument.displayedVoices.load()==0 && audio.getMagnitude(0,256)==0,"Panic must silence instrument notes");
+    setValue(instrument,"source",1); instrument.queueSynthNote(48,true); instrument.processBlock(audio,midi);
+    require(audio.getMagnitude(0,256)>0,"Keyboard layer plays even when the backing drum sequencer is stopped");
+    setValue(instrument,"synthEnabled",0); instrument.processBlock(audio,midi);
+    require(instrument.displayedVoices.load()==0,"Turning synth off releases its voices");
+}
+
 void editorSnapshot()
 {
-    BeatFlipProcessor processor;
+    BeatFlipProcessor processor(JucePlugin_IsSynth != 0);
     processor.loadFactoryPreset (4);
     processor.prepareToPlay (8192.0, 256);
     juce::AudioBuffer<float> audio (2, 256);
@@ -137,7 +166,7 @@ void editorSnapshot()
     juce::MidiBuffer midi;
     for (int i = 0; i < 130; ++i) processor.processBlock (audio, midi);
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
-    require (editor->getWidth() == 1100 && editor->getHeight() == 940, "The editor must have room for the expanded controls");
+    require (editor->getWidth() == 1100 && editor->getHeight() == 1210, "The editor must have room for the expanded controls");
     for (auto* child : editor->getChildren())
         require (editor->getLocalBounds().contains (child->getBounds()), "Editor controls must stay within its bounds");
     const auto image = editor->createComponentSnapshot (editor->getLocalBounds());
@@ -153,6 +182,7 @@ int main()
         { "Preset state recall and v0.1 project migration", stateRecallAndLegacyDefaults },
         { "KEEP and allocation-free plugin processing", keepAndRealTimeProcessing },
         { "Drum grid recall and realtime processing", drumStateAndProcessing },
+        { "Polyphonic MIDI timing, state and panic", synthMidiAndState },
         { "Expanded editor layout and PNG rendering", editorSnapshot }
     };
     int failures = 0;
