@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0
+
+- Add a 16-voice wavetable synth with three morphable banks, band-limited tables, ADSR, low-pass filter, transpose and velocity response. Mix it with drums or input before FLIP.
+- Add a separate Dustbox Synth AU instrument and standalone with sample-accurate MIDI, sustain pedal, pitch bend and panic. Keep the existing Dustbox effect identity and legacy defaults.
+- Add an on-screen / computer keyboard, voice counter and ten saved, automatable synth controls in the vintage editor.
+- Test polyphony, voice stealing, pedal, tuning, deterministic rendering, allocation-free callbacks and synth state recall. Build and AU-validate effect and instrument separately in CI.
+
 ## 0.3.3
 
 - Add EXPORT MIDI to the native editor: one-bar source sequence with standard drum note numbers, swing, velocity accents, track levels, mutes and tempo metadata. Save safely using an asynchronous file chooser.
