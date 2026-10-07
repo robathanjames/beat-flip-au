@@ -1,3 +1,4 @@
+#include "DrumMidiExport.h"
 #include "PluginEditor.h"
 #include "FactoryPresets.h"
 #include <cmath>
@@ -196,6 +197,9 @@ BeatFlipEditor::BeatFlipEditor (BeatFlipProcessor& owner) : AudioProcessorEditor
     grooves.addItemList({"Dusty Pocket","Warehouse 909","Broken Circuit","Blank"},1);
     grooves.setTextWhenNothingSelected("LOAD DRUM GROOVE");
     grooves.onChange=[this] { if(grooves.getSelectedId()>0) processor.loadDrumGroove(grooves.getSelectedId()-1); grooves.setSelectedId(0,juce::dontSendNotification); };
+    addAndMakeVisible(exportMidiButton);
+    exportMidiButton.setTooltip("Save one 4/4 bar of source drum notes, with swing, accents, levels and mutes. Import into a Logic drum instrument track. FLIP audio effects are not MIDI notes.");
+    exportMidiButton.onClick = [this] { exportMidi(); };
     configure(dust,dustLabel,"DUST"); configure(grooveSwing,grooveSwingLabel,"GROOVE SWING");
     dustLabel.setColour(juce::Label::textColourId,mint);
     grooveSwingLabel.setColour(juce::Label::textColourId,mint);
@@ -239,6 +243,40 @@ BeatFlipEditor::~BeatFlipEditor()
     setLookAndFeel (nullptr);
 }
 
+void BeatFlipEditor::exportMidi()
+{
+    if (midiChooser) return;
+    beatflip::DrumSettings settings;
+    for (int track = 0; track < 8; ++track) {
+        settings.levels[track] = processor.parameters.getRawParameterValue("drumLevel" + juce::String(track))->load();
+        settings.muted[track] = processor.parameters.getRawParameterValue("drumMute" + juce::String(track))->load() > .5f;
+        for (int step = 0; step < 16; ++step)
+            settings.pattern[track][step] = static_cast<int>(processor.parameters.getRawParameterValue(BeatFlipProcessor::drumStepId(track, step))->load());
+    }
+    settings.swing = processor.parameters.getRawParameterValue("grooveSwing")->load();
+    const double bpm = processor.displayedHostSync.load() ? processor.displayedBpm.load()
+        : processor.parameters.getRawParameterValue("tempo")->load();
+    const auto bytes = beatflip::exportDrumMidi(settings, bpm);
+    midiChooser = std::make_unique<juce::FileChooser>("Export source drum sequence as MIDI",
+        juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("Dustbox-Drums.mid"), "*.mid");
+    exportMidiButton.setEnabled(false);
+    midiChooser->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles
+        | juce::FileBrowserComponent::warnAboutOverwriting,
+        [safe = juce::Component::SafePointer<BeatFlipEditor>(this), bytes](const juce::FileChooser& chooser) {
+            if (safe == nullptr) return;
+            const auto destination = chooser.getResult();
+            if (destination != juce::File()) {
+                // TemporaryFile replaces an existing file only after all bytes are written.
+                juce::TemporaryFile temporary(destination);
+                if (!temporary.getFile().replaceWithData(bytes.data(), bytes.size()) || !temporary.overwriteTargetFileWithTemporary())
+                    juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,
+                        "MIDI export failed", "The MIDI file could not be saved. Choose a writable location and try again.");
+            }
+            safe->exportMidiButton.setEnabled(true);
+            safe->midiChooser.reset();
+        });
+}
+
 void BeatFlipEditor::timerCallback()
 {
     const int active=processor.displayedDrumStep.load();
@@ -258,6 +296,7 @@ void BeatFlipEditor::resized()
 {
     presets.setBounds(450,34,230,32); enabledButton.setBounds(696,37,124,26);
     source.setBounds(44,120,174,34); drumPlay.setBounds(236,120,140,34); grooves.setBounds(398,120,212,34);
+    exportMidiButton.setBounds(634,120,130,34);
     dust.setBounds(784,100,110,80); dustLabel.setBounds(784,181,110,18);
     grooveSwing.setBounds(922,100,138,80); grooveSwingLabel.setBounds(922,181,138,18);
     for(int tr=0;tr<8;++tr) {
