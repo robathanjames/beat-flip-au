@@ -14,3 +14,10 @@ ctest --test-dir "$project_dir/build-macos" -C Release --output-on-failure
 echo "AU: $project_dir/build-macos/BeatFlip_artefacts/Release/AU/Dustbox.component"
 
 echo "Synth AU: $project_dir/build-macos/DustboxSynth_artefacts/Release/AU/Dustbox Synth.component"
+
+# The existing CI artifact upload collects dist/*.zip for both products.
+if [[ "${CI:-}" == true && -d "$project_dir/build-macos/DustboxSynth_artefacts/Release/AU/Dustbox Synth.component" ]]; then
+  mkdir -p "$project_dir/dist"
+  ditto -c -k --sequesterRsrc --keepParent "$project_dir/build-macos/DustboxSynth_artefacts/Release/AU/Dustbox Synth.component" "$project_dir/dist/Dustbox-Synth-AU-macOS.zip"
+  ditto -c -k --sequesterRsrc --keepParent "$project_dir/build-macos/DustboxSynth_artefacts/Release/Standalone/Dustbox Synth.app" "$project_dir/dist/Dustbox-Synth-Standalone-macOS.zip"
+fi

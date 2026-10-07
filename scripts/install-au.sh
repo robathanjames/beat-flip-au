@@ -24,3 +24,12 @@ for component in "${components[@]}"; do
   ditto "$project_dir/build-macos/$component" "$folder/${component##*/}"
 done
 echo "Installed. Restart Logic. Validate: auval -v aufx BtFp Rbjm (effect), auval -v aumu DbSy Rbjm (synth)."
+
+# The original workflow validates the effect after this script. Validate the new
+# instrument here on CI as well, without changing local installation behavior.
+if [[ "${CI:-}" == true && "$variant" != effect ]]; then
+  codesign --force --sign - --timestamp=none "$folder/Dustbox Synth.component"
+  killall -9 AudioComponentRegistrar || true
+  sleep 2
+  auval -v aumu DbSy Rbjm
+fi
