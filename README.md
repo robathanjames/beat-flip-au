@@ -1,6 +1,6 @@
 # Dustbox
 
-A lo-fi drum machine, 16-step sequencer, 16-voice wavetable synthesizer and beat-flipping effect for **Logic Pro and other macOS Audio Unit hosts**.
+A lo-fi drum machine, independent 16-step drum/synth sequencers, 16-voice wavetable synthesizer and beat-flipping effect for **Logic Pro and other macOS Audio Unit hosts**.
 
 ![Dustbox DB-09 walnut and charcoal web workstation](docs/screenshots/dustbox-web-desktop.png)
 
@@ -18,7 +18,7 @@ The refreshed interface uses walnut side panels, charcoal instrument faces, alum
 
 The AU identity, bundle ID and automation parameter IDs retain the original Beat Flip identifiers, so saved projects still recall the same plugin. When upgrading, move the old `Beat Flip.component` out of the Components folder before installing `Dustbox.component` to avoid duplicate AU registrations.
 
-## Wavetable synth — version 0.5.0
+## Wavetable synth
 
 ### Synth sequencing and live playback — version 0.5.0
 

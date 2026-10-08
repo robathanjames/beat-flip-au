@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0
+
+- Fix live synth notes waiting for a bar boundary. On-screen/computer keys and instrument MIDI play immediately after FLIP, including at 100% wet; only programmed synth audio is captured and flipped.
+- Add a dedicated 16-step synth sequencer to the effect/instrument AUs, both standalone apps and browser workstation. Steps support notes/rests, single/major/minor/sus2/octave chords, velocity and swung gates, plus Bassline and Chord stabs presets.
+- Share the native host/free-run clock and Groove Swing with the drums. Save and automate all native steps with version-5 parameters; existing project parameters and legacy defaults remain unchanged.
+- Add native and desktop/mobile browser regressions for multi-note playback, gate/rest timing, state recall, stop/panic, block-size invariance and allocation-free processing. Keep the walnut cabinet design and refresh interface screenshots.
+
 ## 0.4.0
 
 - Add a 16-voice wavetable synth with three morphable banks, band-limited tables, ADSR, low-pass filter, transpose and velocity response. Mix it with drums or input before FLIP.
