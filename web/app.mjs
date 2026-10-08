@@ -1,4 +1,5 @@
 import { TRACKS, EFFECTS, EFFECT_LABELS, groove, blankPattern, makeFlip, renderBar, voice, colorAudio, variationSeed } from './engine.mjs';
+import { CHORDS, noteName, synthPattern } from './synth-sequence.mjs';
 
 const $ = id => document.getElementById(id);
 const state = {
@@ -6,7 +7,8 @@ const state = {
   amount: .65, mix: .8, repeatSwing: 0, speed: 0, auto: 0, protect: true,
   effects: EFFECTS.slice(1), enabled: false, seed: 909,
   levels: [.95, .7, .55, .5, .45, .65, .6, .4], muted: Array(8).fill(false),
-  synth: { enabled: true, bank: 'classic', position: .22, level: .55, tune: 0, cutoff: 7200, attack: .03, decay: .18, sustain: .72, release: .45 }
+  synth: { enabled: true, bank: 'classic', position: .22, level: .55, tune: 0, cutoff: 7200, attack: .03, decay: .18, sustain: .72, release: .45 },
+  synthSequenceEnabled: false, synthPattern: synthPattern('blank')
 };
 let context, output, limiter, playing = false, starting = false, startGeneration = 0;
 let synthBus, midiAccess;
@@ -15,8 +17,39 @@ let events = [], sources = new Set(), shownEvent = null, previousStep = -1, prev
 let previewTimer;
 const stepButtons = [], trackElements = [], mapCells = [];
 const activeNotes = new Map(), pendingNotes = new Set(), keyboardPointers = new Map(), keyButtons = new Map();
-const snapshot = () => ({ ...state, pattern: state.pattern.map(x => [...x]), effects: [...state.effects], levels: [...state.levels], muted: [...state.muted], synth: { ...state.synth }, synthNotes: [...activeNotes].map(([note, entry]) => ({ note, velocity: entry.velocity })) });
+const liveVoices = new Set();
+const snapshot = () => ({ ...state, pattern: state.pattern.map(x => [...x]), effects: [...state.effects], levels: [...state.levels], muted: [...state.muted], synth: { ...state.synth }, synthPattern: state.synthPattern.map(step => ({...step})) });
 const announce = message => { $('audio-message').textContent = message; };
+const synthSteps = [];
+let selectedSynthStep = 0;
+for (let note = -1; note <= 127; note++) {
+  const option = document.createElement('option'); option.value = note; option.textContent = noteName(note); $('seq-note').append(option);
+}
+CHORDS.forEach((name,chord) => { const option=document.createElement('option'); option.value=chord; option.textContent=name; $('seq-chord').append(option); });
+for (let step=0;step<16;step++) {
+  const button=document.createElement('button'); button.className='synth-step';
+  button.addEventListener('click', () => { selectedSynthStep=step; refreshSynthSequence(); });
+  button.addEventListener('keydown', event => {
+    if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+    event.preventDefault(); selectedSynthStep=event.key==='Home'?0:event.key==='End'?15:(step+(event.key==='ArrowRight'?1:15))%16;
+    refreshSynthSequence(); synthSteps[selectedSynthStep].focus();
+  });
+  $('synth-steps').append(button); synthSteps.push(button);
+}
+function refreshSynthSequence() {
+  synthSteps.forEach((button,index) => {
+    const step=state.synthPattern[index]; button.classList.toggle('selected',index===selectedSynthStep);
+    button.classList.toggle('has-note',step.note>=0); button.tabIndex=index===selectedSynthStep?0:-1;
+    button.setAttribute('aria-pressed',index===selectedSynthStep);
+    button.setAttribute('aria-label',`Synth step ${index+1}: ${noteName(step.note)}${step.note>=0?' '+CHORDS[step.chord]:''}. Select to edit.`);
+    button.innerHTML=`<span>${String(index+1).padStart(2,'0')}</span><strong>${noteName(step.note)}</strong><small>${step.note>=0?CHORDS[step.chord].toUpperCase():'—'}</small>`;
+  });
+  const step=state.synthPattern[selectedSynthStep]; $('seq-selected').textContent=`STEP ${String(selectedSynthStep+1).padStart(2,'0')}`;
+  $('seq-note').value=step.note; $('seq-chord').value=step.chord;
+  $('seq-velocity').value=Math.round(step.velocity*100); $('seq-gate').value=Math.round(step.gate*100);
+  $('seq-velocity-value').textContent=`${Math.round(step.velocity*100)}%`; $('seq-gate-value').textContent=`${Math.round(step.gate*100)}%`;
+  $('synth-seq-play').checked=state.synthSequenceEnabled;
+}
 
 for (let s = 0; s < 16; s++) {
   const number = document.createElement('span');
@@ -169,7 +202,7 @@ function refreshVoiceDisplay() {
 async function noteOn(note, velocity = .82) {
   if (!Number.isFinite(note) || activeNotes.has(note) || pendingNotes.has(note) || !state.synth.enabled) return;
   pendingNotes.add(note);
-  try { await enableAudio(); } catch (error) { pendingNotes.delete(note); announce(error.message || 'Sound could not start.'); return; }
+  try { if (!context || context.state !== 'running') await enableAudio(); } catch (error) { pendingNotes.delete(note); announce(error.message || 'Sound could not start.'); return; }
   if (!pendingNotes.delete(note) || !state.synth.enabled) return;
   if (activeNotes.size >= 16) noteOff(activeNotes.keys().next().value, true);
   const now = context.currentTime, envelope = context.createGain(), filter = context.createBiquadFilter();
@@ -182,8 +215,9 @@ async function noteOn(note, velocity = .82) {
     osc.frequency.value = 440 * 2 ** ((note - 69) / 12); osc.detune.value = state.synth.tune * 100; gain.gain.value = weights[frame];
     osc.connect(gain); gain.connect(filter); osc.start(now); oscillators.push(osc); gains.push(gain);
   }
-  activeNotes.set(note, { note, velocity, envelope, filter, oscillators, gains }); keyButtons.get(note)?.classList.add('active');
-  refreshVoiceDisplay(); changed();
+  const entry={ note, velocity, envelope, filter, oscillators, gains };
+  activeNotes.set(note, entry); liveVoices.add(entry); keyButtons.get(note)?.classList.add('active');
+  refreshVoiceDisplay();
 }
 function noteOff(note, immediate = false) {
   pendingNotes.delete(note);
@@ -191,10 +225,19 @@ function noteOff(note, immediate = false) {
   const now = context.currentTime, release = immediate ? .012 : state.synth.release;
   entry.envelope.gain.cancelScheduledValues(now); entry.envelope.gain.setTargetAtTime(0, now, Math.max(.003, release / 5));
   entry.oscillators.forEach(osc => { try { osc.stop(now + release + .05); } catch {} });
-  setTimeout(() => { entry.oscillators.forEach(osc => osc.disconnect()); entry.gains.forEach(g => g.disconnect()); entry.filter.disconnect(); entry.envelope.disconnect(); }, (release + .1) * 1000);
-  activeNotes.delete(note); keyButtons.get(note)?.classList.remove('active'); refreshVoiceDisplay(); changed();
+  setTimeout(() => { entry.oscillators.forEach(osc => osc.disconnect()); entry.gains.forEach(g => g.disconnect()); entry.filter.disconnect(); entry.envelope.disconnect(); liveVoices.delete(entry); }, (release + .1) * 1000);
+  activeNotes.delete(note); keyButtons.get(note)?.classList.remove('active'); refreshVoiceDisplay();
 }
-function panic() { pendingNotes.clear(); [...activeNotes.keys()].forEach(note => noteOff(note, true)); announce('Synth voices cleared.'); }
+function panic() {
+  pendingNotes.clear(); keyboardPointers.clear();
+  [...activeNotes.keys()].forEach(note => noteOff(note, true));
+  if(context) liveVoices.forEach(entry => {
+    entry.envelope.gain.cancelScheduledValues(context.currentTime);
+    entry.envelope.gain.setTargetAtTime(0,context.currentTime,.002);
+    entry.oscillators.forEach(osc => { try { osc.stop(context.currentTime+.012); } catch {} });
+  });
+  announce('Synth voices cleared.');
+}
 function refreshLiveSynth() {
   if (!context) return;
   const now = context.currentTime, weights = frameWeights(state.synth.position);
@@ -246,7 +289,8 @@ async function play() {
     if (generation !== startGeneration) return;
     output.gain.cancelScheduledValues(context.currentTime); output.gain.setValueAtTime(state.volume, context.currentTime);
     playing = true; scheduledBars = 0; sequenceAnchor = 0; events = []; shownEvent = null; previousStep = -1; previousBar = -1;
-    synthBus.gain.setTargetAtTime(0, context.currentTime, .015);
+    // Live keys stay audible throughout playback; only sequenced notes enter FLIP.
+    synthBus.gain.setValueAtTime(1, context.currentTime);
     nextTime = context.currentTime + .07; schedule(); timer = setInterval(schedule, 25);
     $('play').classList.add('playing'); $('play').querySelector('span').textContent = 'PAUSE'; $('play').setAttribute('aria-label', 'Pause beat');
     $('sequence-status').textContent = 'PLAYING'; announce('Playing. Edits land at bar boundaries.'); tick();
@@ -263,6 +307,7 @@ function stop() {
   }
   events = []; shownEvent = null; previousStep = -1; previousBar = -1;
   stepButtons.flat().forEach(b => b.classList.remove('current')); mapCells.forEach(c => c.classList.remove('current'));
+  synthSteps.forEach(b => b.classList.remove('current'));
   $('play').classList.remove('playing'); $('play').querySelector('span').textContent = 'PLAY'; $('play').setAttribute('aria-label', 'Play beat');
   $('position').innerHTML = '01 <small>/</small> 01'; $('sequence-status').textContent = 'SOURCE PATTERN';
   announce('Stopped. Your pattern is ready.'); preview();
@@ -277,6 +322,7 @@ function tick() {
     if (step !== previousStep || event.bar !== previousBar) {
       stepButtons.forEach((row, tr) => { row.forEach((button, s) => button.classList.toggle('current', s === step)); if (event.settings.pattern[tr][step] && !event.settings.muted[tr]) flashTrack(tr); });
       mapCells.forEach((cell, s) => cell.classList.toggle('current', s === step));
+      synthSteps.forEach((button,s) => button.classList.toggle('current',s===step && event.settings.synthSequenceEnabled && event.settings.synth.enabled));
       $('position').innerHTML = `${String(event.bar + 1).padStart(2, '0')} <small>/</small> ${String(step + 1).padStart(2, '0')}`;
       previousStep = step; previousBar = event.bar;
     }
@@ -326,7 +372,13 @@ $('synth-power').addEventListener('click', () => {
   $('synth-power').lastChild.textContent = state.synth.enabled ? 'SYNTH ON' : 'SYNTH OFF';
   if (!state.synth.enabled) panic(); changed();
 });
-$('panic').addEventListener('click', panic);
+$('panic').addEventListener('click', () => { panic(); state.synthSequenceEnabled=false; refreshSynthSequence(); changed(); if (playing) { stop(); play(); } });
+$('synth-seq-play').addEventListener('change', () => { state.synthSequenceEnabled=$('synth-seq-play').checked; changed(); });
+$('synth-seq-preset').addEventListener('change', () => { state.synthPattern=synthPattern($('synth-seq-preset').value); state.synthSequenceEnabled=$('synth-seq-preset').value!=='blank'; refreshSynthSequence(); changed(); });
+$('synth-seq-clear').addEventListener('click', () => { state.synthPattern=synthPattern('blank'); $('synth-seq-preset').value='blank'; refreshSynthSequence(); changed(); });
+for (const [id,field,scale] of [['seq-note','note',1],['seq-chord','chord',1],['seq-velocity','velocity',.01],['seq-gate','gate',.01]]) {
+  $(id).addEventListener('input', () => { state.synthPattern[selectedSynthStep][field]=Number($(id).value)*scale; $('synth-seq-preset').value='custom'; refreshSynthSequence(); changed(); });
+}
 $('synth-bank').addEventListener('change', () => { state.synth.bank = $('synth-bank').value; refreshLiveSynth(); refreshVoiceDisplay(); changed(); });
 const synthRanges = {
   'wave-position': { key: 'position', read: v => v / 100, label: v => `${v}%` },
@@ -352,7 +404,7 @@ $('midi').addEventListener('click', async () => {
 });
 const typingKeys = new Map(Object.entries({ KeyA:48, KeyW:49, KeyS:50, KeyE:51, KeyD:52, KeyF:53, KeyT:54, KeyG:55, KeyY:56, KeyH:57, KeyU:58, KeyJ:59, KeyK:60 }));
 document.addEventListener('keydown', e => {
-  if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.target.closest('input,select,button,textarea,[contenteditable]')) return;
+  if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.target.closest('input,select,textarea,[contenteditable]') || (e.target.closest('button') && !e.target.closest('.piano-key'))) return;
   if (typingKeys.has(e.code)) { e.preventDefault(); noteOn(typingKeys.get(e.code), .82); return; }
   if (e.code === 'Space') { e.preventDefault(); play(); }
 });
@@ -360,7 +412,7 @@ document.addEventListener('keyup', e => { if (typingKeys.has(e.code)) { e.preven
 document.addEventListener('visibilitychange', () => { if (document.hidden) { panic(); if (playing) { stop(); announce('Playback paused while the tab is hidden. Press PLAY to continue.'); } } });
 window.addEventListener('blur', panic);
 window.addEventListener('pagehide', () => { if (playing) stop(); panic(); });
-refreshTracks(); refreshModes(); refreshVoiceDisplay(); preview();
+refreshTracks(); refreshModes(); refreshVoiceDisplay(); refreshSynthSequence(); preview();
 
 // Tools share the same sequencer state and actions as the visible controls.
 if (document.modelContext?.registerTool) {

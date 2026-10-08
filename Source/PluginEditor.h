@@ -44,6 +44,15 @@ private:
     juce::Label synthStatus;
     std::array<juce::Slider,8> synthControls;
     std::array<juce::Label,8> synthLabels;
+    juce::ToggleButton synthSequencePlay { "SEQUENCE ON" };
+    juce::ComboBox synthSequencePreset, synthStepNote, synthStepChord;
+    juce::TextButton synthSequenceClear { "CLEAR" };
+    std::array<juce::TextButton,16> synthSequenceGrid;
+    juce::Slider synthStepVelocity, synthStepGate;
+    juce::Label synthSelectedLabel, synthNoteLabel, synthChordLabel, synthVelocityLabel, synthGateLabel;
+    int selectedSynthStep = 0;
+    void refreshSynthSequence();
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> synthSequenceAttachment;
     juce::ToggleButton drumPlay { "PLAY DRUMS" };
     juce::Slider dust, grooveSwing;
     juce::Label dustLabel, grooveSwingLabel;

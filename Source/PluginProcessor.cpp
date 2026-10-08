@@ -31,6 +31,11 @@ BeatFlipProcessor::BeatFlipProcessor(bool instrument)
     }
     const std::array<const char*,10> synthIds { "synthEnabled","synthBank","synthPosition","synthLevel","synthTune","synthAttack","synthDecay","synthSustain","synthRelease","synthCutoff" };
     for(std::size_t i=0;i<synthIds.size();++i) synthParameters[i]=parameters.getRawParameterValue(synthIds[i]);
+    synthSequencePlay=parameters.getRawParameterValue("synthSeqPlay");
+    for(int step=0;step<16;++step) {
+        const char* fields[] {"Note","Chord","Velocity","Gate"};
+        for(int field=0;field<4;++field) synthSteps[static_cast<std::size_t>(step)][static_cast<std::size_t>(field)]=parameters.getRawParameterValue(synthStepId(step,fields[field]));
+    }
     publishPattern();
 }
 
@@ -83,15 +88,27 @@ juce::AudioProcessorValueTreeState::ParameterLayout BeatFlipProcessor::makeParam
     addSynth("synthSustain","Synth Sustain",0,1,.65f);
     addSynth("synthRelease","Synth Release",.01f,8,.5f,.3f);
     addSynth("synthCutoff","Synth Cutoff",40,20000,9000,.25f);
+    layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"synthSeqPlay",5},"Play Synth Sequence",false));
+    for(int step=0;step<16;++step) {
+        const auto name="Synth Step "+juce::String(step+1);
+        layout.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID{synthStepId(step,"Note"),5},name+" Note (-1 Rest)",-1,127,-1));
+        layout.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{synthStepId(step,"Chord"),5},name+" Chord",juce::StringArray{"Single","Major","Minor","Sus2","Octave"},0));
+        layout.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{synthStepId(step,"Velocity"),5},name+" Velocity",juce::NormalisableRange<float>{.01f,1.0f,.001f},.8f));
+        layout.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{synthStepId(step,"Gate"),5},name+" Gate",juce::NormalisableRange<float>{.1f,1.0f,.001f},.65f));
+    }
     return layout;
 }
 
-void BeatFlipProcessor::prepareToPlay (double sampleRate, int)
+void BeatFlipProcessor::prepareToPlay (double sampleRate, int maximumBlockSize)
 {
+    processorRate=std::isfinite(sampleRate)?juce::jlimit(8000.0,192000.0,sampleRate):48000.0;
     engine.prepare (sampleRate);
     drums.prepare (sampleRate);
     synth.prepare(sampleRate);
+    synthSequence.prepare(sampleRate);
+    liveSynthAudio.setSize(2,juce::jmax(1,maximumBlockSize));
     previousSynthEnabled=false;
+    previousSequencePlaying=false; freeTransportPpq=0;
     guiRead.store(guiWrite.load());
     previousDrumSource = previousDrumPlaying = false;
     setLatencySamples (0);
@@ -102,6 +119,8 @@ void BeatFlipProcessor::reset()
     engine.reset();
     drums.reset();
     synth.reset();
+    synthSequence.reset();
+    freeTransportPpq=0; previousSequencePlaying=false;
     guiRead.store(guiWrite.load());
 }
 
@@ -164,6 +183,13 @@ void BeatFlipProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
         }
     }
 
+    const bool actualHostSync=transport.hasPosition;
+    if(!transport.hasPosition) {
+        // One clock for drums, synth pattern and FLIP in both standalone apps.
+        transport.ppq=freeTransportPpq; transport.hasPosition=true;
+        const double bpm=std::isfinite(transport.bpm)?juce::jlimit(20.0,400.0,transport.bpm):120.0;
+        if(transport.playing) freeTransportPpq+=buffer.getNumSamples()*bpm/(60*processorRate);
+    }
     for (int ch = getTotalNumInputChannels(); ch < buffer.getNumChannels(); ++ch)
         buffer.clear (ch, 0, buffer.getNumSamples());
     const bool hostPlaying=transport.playing;
@@ -189,9 +215,9 @@ void BeatFlipProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
         if (!drumPlaying) settings.enabled=false;
     } else { auditionMask.store(0); displayedDrumStep.store(-1); }
     const bool synthEnabled=synthParameters[0]->load()>=.5f;
-    if(synthEnabled!=previousSynthEnabled) { synth.reset(); engine.reset(); }
+    if(synthEnabled!=previousSynthEnabled) { synth.reset(); synthSequence.reset(); engine.reset(); }
     previousSynthEnabled=synthEnabled;
-    if(panicRequested.exchange(false)) { synth.allSoundOff(); guiRead.store(guiWrite.load()); }
+    if(panicRequested.exchange(false)) { synth.allSoundOff(); synthSequence.panic(); engine.reset(); guiRead.store(guiWrite.load()); }
     beatflip::SynthSettings synthSettings;
     synthSettings.bank=static_cast<int>(synthParameters[1]->load());
     synthSettings.position=synthParameters[2]->load(); synthSettings.level=synthParameters[3]->load();
@@ -199,6 +225,33 @@ void BeatFlipProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
     synthSettings.decay=synthParameters[6]->load(); synthSettings.sustain=synthParameters[7]->load();
     synthSettings.release=synthParameters[8]->load(); synthSettings.cutoff=synthParameters[9]->load();
     synth.setSettings(synthSettings);
+    beatflip::SynthSequenceSettings sequenceSettings;
+    sequenceSettings.playing=synthEnabled && synthSequencePlay->load()>=.5f;
+    if(sequenceSettings.playing!=previousSequencePlaying) engine.reset();
+    previousSequencePlaying=sequenceSettings.playing;
+    sequenceSettings.swing=grooveSwingParameter->load();
+    for(std::size_t step=0;step<16;++step) {
+        auto& item=sequenceSettings.pattern[step]; const auto& values=synthSteps[step];
+        item.note=static_cast<int>(values[0]->load()); item.chord=static_cast<int>(values[1]->load());
+        item.velocity=values[2]->load(); item.gate=values[3]->load();
+    }
+    auto synthTransport=transport; synthTransport.playing=hostPlaying;
+    synthSequence.process(buffer.getArrayOfWritePointers(),buffer.getNumChannels(),buffer.getNumSamples(),sequenceSettings,synthSettings,synthTransport);
+    displayedSynthStep.store(synthSequence.currentStep());
+    if(drumSource && (synthEnabled || sequenceSettings.playing)) {
+        transport.playing=hostPlaying; settings.enabled=enabledParameter->load()>=.5f;
+    }
+    // Only programmed audio enters FLIP. Live MIDI/keys are monitored afterwards,
+    // so even a 100% wet flip can never delay or replace a new note.
+    engine.process(buffer.getArrayOfWritePointers(),buffer.getNumChannels(),buffer.getNumSamples(),settings,transport);
+    const auto renderLive=[&](int start,int count) {
+        while(count>0) {
+            const int chunk=juce::jmin(count,liveSynthAudio.getNumSamples());
+            liveSynthAudio.clear(); synth.render(liveSynthAudio.getArrayOfWritePointers(),buffer.getNumChannels(),0,chunk);
+            for(int ch=0;ch<buffer.getNumChannels();++ch) buffer.addFrom(ch,start,liveSynthAudio,ch,0,chunk,settings.outputGain);
+            start+=chunk; count-=chunk;
+        }
+    };
     auto read=guiRead.load(std::memory_order_relaxed);
     const auto write=guiWrite.load(std::memory_order_acquire);
     while(read!=write) {
@@ -211,28 +264,40 @@ void BeatFlipProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
         int rendered=0;
         if(instrumentMode) for(const auto metadata:midi) {
             const int position=juce::jlimit(rendered,buffer.getNumSamples(),metadata.samplePosition);
-            synth.render(buffer.getArrayOfWritePointers(),buffer.getNumChannels(),rendered,position-rendered);
+            renderLive(rendered,position-rendered);
             if(metadata.numBytes<=3) handleSynthMidi(metadata.getMessage());
             rendered=position;
         }
-        synth.render(buffer.getArrayOfWritePointers(),buffer.getNumChannels(),rendered,buffer.getNumSamples()-rendered);
-        // Drum Play must not stop the keyboard layer; host transport still clocks FLIP.
-        if(drumSource) { transport.playing=hostPlaying; settings.enabled=enabledParameter->load()>=.5f; }
+        renderLive(rendered,buffer.getNumSamples()-rendered);
     }
     if(instrumentMode) midi.clear();
     displayedVoices.store(synth.activeVoices());
-    engine.process (buffer.getArrayOfWritePointers(), buffer.getNumChannels(), buffer.getNumSamples(), settings, transport);
     displayedStep.store (engine.getCurrentStep(), std::memory_order_relaxed);
     displayedSeed.store (engine.getActiveSeed(), std::memory_order_relaxed);
     displayedBaseSeed.store (engine.getBaseSeed(), std::memory_order_relaxed);
     publishPattern (settings.amount);
     displayedCapturing.store (engine.isCapturing(), std::memory_order_relaxed);
-    displayedHostSync.store (transport.hasPosition, std::memory_order_relaxed);
+    displayedHostSync.store (actualHostSync, std::memory_order_relaxed);
     displayedPlaying.store (transport.playing, std::memory_order_relaxed);
     displayedBpm.store (transport.bpm, std::memory_order_relaxed);
     const auto safeBpm = std::isfinite (transport.bpm) ? juce::jlimit (20.0, 400.0, transport.bpm) : 120.0;
     displayedBarSeconds.store (juce::jmin (16.0, 60.0 / safeBpm * juce::jlimit (1, 32, transport.numerator)
                                          * 4.0 / juce::jlimit (1, 32, transport.denominator)), std::memory_order_relaxed);
+}
+
+void BeatFlipProcessor::editSynthStep(int step,const char* field,float value)
+{
+    if(step>=0 && step<16) setParameterValue(synthStepId(step,field).toRawUTF8(),value);
+}
+void BeatFlipProcessor::loadSynthPattern(int preset)
+{
+    const auto pattern=beatflip::synthPattern(preset);
+    for(int step=0;step<16;++step) {
+        const auto& item=pattern[static_cast<std::size_t>(step)];
+        editSynthStep(step,"Note",static_cast<float>(item.note)); editSynthStep(step,"Chord",static_cast<float>(item.chord));
+        editSynthStep(step,"Velocity",item.velocity); editSynthStep(step,"Gate",item.gate);
+    }
+    if(preset>0) { setParameterValue("synthEnabled",1); setParameterValue("synthSeqPlay",1); }
 }
 
 void BeatFlipProcessor::queueSynthNote(int note,bool down) noexcept

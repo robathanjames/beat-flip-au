@@ -1,24 +1,32 @@
 # Dustbox
 
-A lo-fi drum machine, 16-step sequencer, 16-voice wavetable synthesizer and beat-flipping effect for **Logic Pro and other macOS Audio Unit hosts**.
+A lo-fi drum machine, independent 16-step drum/synth sequencers, 16-voice wavetable synthesizer and beat-flipping effect for **Logic Pro and other macOS Audio Unit hosts**.
 
 ![Dustbox DB-09 walnut and charcoal web workstation](docs/screenshots/dustbox-web-desktop.png)
+
+![Dustbox native synth sequencer and live keyboard](docs/screenshots/dustbox-native-sequencer.png)
 
 [Native and web interface screenshots](docs/screenshots/README.md)
 
 Put it on a drum loop or drum bus, let a full bar play, and press **FLIP**. The plugin generates a new tempo-synced pattern of stutters, reverse slices, rearranged hits, rhythmic cuts, and half-speed fragments. Keep a pattern you like, or let Auto Flip generate variations at bar boundaries. Downbeat protection keeps the groove anchored by default.
 
-**Version 0.4.0 adds the 16-voice wavetable instrument to the Audio Unit and the web app. Version 0.3.1 introduced the Dustbox name and vintage hardware interface; version 0.3.0 added the Drum Lab.** The portable DSP engine passes behavioral and sanitizer tests. See the current [validation status](docs/VALIDATION.md) before using it in a production session. There is no finished, signed installer.
+**Version 0.5.0 adds synth note/chord sequencing and fixes live playback across all products. Version 0.4.0 introduced the 16-voice wavetable instrument; version 0.3.1 introduced the Dustbox name and vintage interface.** The portable DSP engine passes behavioral and sanitizer tests. See the current [validation status](docs/VALIDATION.md) before using it in a production session. There is no finished, signed installer.
 
 ## Web workstation
 
-The hosted [Dustbox DB-09 web app](https://beat-flip-web.tj25h4ksw8.chatgpt.site) now combines the lo-fi 909 drum machine, 16-step sequencer, FLIP engine, and a playable 16-voice wavetable synth. It mirrors the native synth's Classic, Warm, and Spectral banks, four-frame Wave Position morphing, Level, ±24-semitone Tune, low-pass Cutoff, ADSR, panic, on-screen keyboard, computer keys, and optional Web MIDI. Held notes are rendered into the next bar before FLIP, so chords and drums can be rearranged together.
+The hosted [Dustbox DB-09 web app](https://beat-flip-web.tj25h4ksw8.chatgpt.site) combines the lo-fi 909 drum machine, drum sequencer, FLIP engine, and playable 16-voice wavetable synth with its own 16-step note/chord sequencer. It mirrors the native synth's Classic, Warm, and Spectral banks, four-frame Wave Position morphing, Level, ±24-semitone Tune, low-pass Cutoff, ADSR, panic, on-screen keyboard, computer keys, and optional Web MIDI. Live keys respond immediately throughout playback; programmed synth notes mix with the drums before FLIP.
 
 The refreshed interface uses walnut side panels, charcoal instrument faces, aluminium-centered knobs, orange/blue rocker-style controls, and shaded piano keys. [Desktop, mobile, and native screenshots](docs/screenshots/README.md).
 
 The AU identity, bundle ID and automation parameter IDs retain the original Beat Flip identifiers, so saved projects still recall the same plugin. When upgrading, move the old `Beat Flip.component` out of the Components folder before installing `Dustbox.component` to avoid duplicate AU registrations.
 
-## Wavetable synth — version 0.4.0
+## Wavetable synth
+
+### Synth sequencing and live playback — version 0.5.0
+
+All products—the effect AU, Synth instrument AU, both standalone apps, and web app—now include a dedicated **16-step synth sequencer**. Select a step, choose a MIDI note or **REST**, and set **Single / Major / Minor / Sus2 / Octave**, **Velocity**, and **Gate** (10–100% of the swung step). Load **Bassline** or **Chord stabs**, or start blank. **SEQUENCE ON** runs the pattern with Logic's transport or the standalone/web clock; it is independent of PLAY DRUMS. Both patterns share Groove Swing. Native synth steps are automatable and recalled in projects; old projects open with the new sequence empty and off. Web patterns remain session-local.
+
+Live on-screen/computer keys and instrument MIDI are monitored after FLIP, so new notes play immediately at any point in the bar—even at 100% wet. Live notes are no longer sampled once at a bar boundary. To flip synth audio, program the synth sequence: it enters FLIP before processing alongside the drum pattern. PANIC stops the synth sequence and clears live voices; stopping host/web playback stops sequenced notes but leaves live keys playable.
 
 **Dustbox Synth** is a separate MIDI-playable AU instrument. In Logic, create a Software Instrument track and select **Rob James → Dustbox Synth** in the Instrument slot. Play a MIDI keyboard or record notes into a MIDI region. The original **Dustbox** Audio FX keeps its existing AU identity and defaults, so older projects retain their sound.
 
@@ -26,7 +34,7 @@ The new synth panel provides **16 voices**, velocity-sensitive notes, **Classic 
 
 Click or drag the two-octave keyboard to play, or focus it and use **A W S E D F T G Y H U J K** for one chromatic octave. Clicking a key enables the synth. Both standalone apps support the on-screen keyboard; choose a MIDI input in the Synth standalone's audio/MIDI settings to use external keys. The synth is enabled by default in the instrument and disabled by default in the effect. The original effect does not receive host MIDI.
 
-Select **Synth only** in the instrument, or **Drum machine** to combine notes with the drum sequencer. The synth mixes before FLIP, so chords and drum patterns can be captured and rearranged together. Start Logic's transport, play a complete bar, then press FLIP. Notes remain playable with the transport stopped; FLIP waits for playback and captured audio. Drum PLAY is independent of the synth keyboard. EXPORT MIDI continues to export the drum grid; record synth notes in Logic and bounce for processed audio.
+Select **Synth only** in the instrument, or **Drum machine** for the backing drum grid. Program the synth sequence and enable SEQUENCE ON to capture notes/chords and drums together. Start Logic's transport and capture a complete bar, then press FLIP. Live MIDI and keyboard notes remain immediately playable with the transport stopped or running; they bypass FLIP. Drum PLAY is independent of the synth keyboard and sequence. EXPORT MIDI continues to export only the drum grid.
 
 ## Drum Lab
 
@@ -195,3 +203,4 @@ The FLIP stage changes audio that you hear and bounce. It does not rewrite MIDI 
 | `.github/workflows/build.yml` | Linux tests and macOS AU build/validation. |
 
 The project fetches [JUCE 8.0.15](https://github.com/juce-framework/JUCE/releases/tag/8.0.15). JUCE is licensed separately; see [license notes](LICENSE-NOTES.md).
+
