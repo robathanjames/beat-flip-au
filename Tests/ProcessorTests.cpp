@@ -32,7 +32,7 @@ void stateRecallAndLegacyDefaults()
     for (auto* parameter : original.getParameters())
     {
         const auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter);
-        require (parameter->getVersionHint() == (oldParameterIds.contains (ranged->getParameterID()) ? 1 : ranged->getParameterID().startsWith("synth") ? 4 : ranged->getParameterID().startsWith("drum") || ranged->getParameterID() == "source" || ranged->getParameterID() == "dust" || ranged->getParameterID() == "grooveSwing" ? 3 : 2),
+        require (parameter->getVersionHint() == (oldParameterIds.contains (ranged->getParameterID()) ? 1 : ranged->getParameterID().startsWith("synthSeq") ? 5 : ranged->getParameterID().startsWith("synth") ? 4 : ranged->getParameterID().startsWith("drum") || ranged->getParameterID() == "source" || ranged->getParameterID() == "dust" || ranged->getParameterID() == "grooveSwing" ? 3 : 2),
                  "Existing AU parameter ordering must retain its original version hints");
     }
     setValue (original, "tempo", 137.5f);
@@ -70,6 +70,7 @@ void stateRecallAndLegacyDefaults()
              && value (restored, "autoFlip") == 0.0f && value (restored, "protect") == 1.0f,
              "Legacy projects must restore the original pattern defaults");
     require(value(restored,"synthEnabled")==0,"Legacy effect projects must keep synthesis disabled");
+    require(value(restored,"synthSeqPlay")==0 && value(restored,"synthSeq0Note")==-1,"Legacy projects must keep the new sequencer off and empty");
     require(value(restored,"source")==0 && value(restored,"drumPlay")==0,"Legacy projects must use audio input with drums stopped");
     for (const auto* id : BeatFlipProcessor::effectParameterIds)
         require (value (restored, id) == 1.0f, "Legacy projects must enable the full original effect palette");
@@ -160,18 +161,49 @@ void editorSnapshot()
 {
     BeatFlipProcessor processor(JucePlugin_IsSynth != 0);
     processor.loadFactoryPreset (4);
+    processor.loadSynthPattern(2);
     processor.prepareToPlay (8192.0, 256);
     juce::AudioBuffer<float> audio (2, 256);
     audio.clear();
     juce::MidiBuffer midi;
     for (int i = 0; i < 130; ++i) processor.processBlock (audio, midi);
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
-    require (editor->getWidth() == 1100 && editor->getHeight() == 1210, "The editor must have room for the expanded controls");
+    require (editor->getWidth() == 1100 && editor->getHeight() == 1380, "The editor must have room for the expanded controls");
     for (auto* child : editor->getChildren())
         require (editor->getLocalBounds().contains (child->getBounds()), "Editor controls must stay within its bounds");
     const auto image = editor->createComponentSnapshot (editor->getLocalBounds());
     auto stream = juce::File::getCurrentWorkingDirectory().getChildFile ("Beat-Flip-Editor.png").createOutputStream();
     require (stream != nullptr && juce::PNGImageFormat().writeImageToStream (image, *stream), "Editor preview must render successfully");
+}
+void sequenceRecallAndLiveMonitoring()
+{
+    for(bool instrument:{false,true}) {
+        BeatFlipProcessor processor(instrument),restored(instrument);
+        processor.loadSynthPattern(1); processor.editSynthStep(6,"Chord",2); processor.editSynthStep(6,"Gate",.31f);
+        juce::MemoryBlock state; processor.getStateInformation(state); restored.setStateInformation(state.getData(),static_cast<int>(state.getSize()));
+        for(auto* parameter:processor.getParameters()) {
+            const auto id=dynamic_cast<juce::RangedAudioParameter*>(parameter)->getParameterID();
+            require(processor.parameters.getRawParameterValue(id)->load()==restored.parameters.getRawParameterValue(id)->load(),"Every synth step must survive project recall in both products");
+        }
+        restored.prepareToPlay(8000,256); juce::AudioBuffer<float> audio(2,256); juce::MidiBuffer midi;
+        allocationGuard::start(); for(int i=0;i<100;++i) { audio.clear(); restored.processBlock(audio,midi); } const auto allocations=allocationGuard::stop();
+        require(allocations==0 && restored.displayedSynthStep.load()>=0,"Both native versions must sequence with no realtime allocation");
+        setValue(restored,"synthSeqPlay",0); setValue(restored,"enabled",1); setValue(restored,"mix",1); setValue(restored,"amount",1);
+        setValue(restored,"source",1); setValue(restored,"drumPlay",0); setValue(restored,"synthRelease",.01f);
+        // Warm the FLIP history with silence. A live note must not depend on that history.
+        for(int i=0;i<100;++i) { audio.clear(); restored.processBlock(audio,midi); }
+        for(int note:{60,64,67}) {
+            restored.queueSynthNote(note,true); audio.clear(); restored.processBlock(audio,midi);
+            require(audio.getMagnitude(0,256)>.01f,"Live keys must sound mid-bar even with FLIP 100% wet in either version");
+            restored.queueSynthNote(note,false); for(int i=0;i<3;++i) { audio.clear(); restored.processBlock(audio,midi); }
+        }
+        // Oversized host blocks still use preallocated scratch storage.
+        juce::AudioBuffer<float> large(2,1024); restored.queueSynthNote(72,true); large.clear();
+        allocationGuard::start(); restored.processBlock(large,midi); const auto largeAllocations=allocationGuard::stop();
+        require(largeAllocations==0 && large.getMagnitude(0,1024)>.01f,"Live synthesis must handle larger blocks without reallocating");
+        restored.panicSynth(); large.clear(); restored.processBlock(large,midi);
+        require(large.getMagnitude(0,1024)==0,"Panic must clear live notes and captured sequence audio");
+    }
 }
 }
 
@@ -183,6 +215,7 @@ int main()
         { "KEEP and allocation-free plugin processing", keepAndRealTimeProcessing },
         { "Drum grid recall and realtime processing", drumStateAndProcessing },
         { "Polyphonic MIDI timing, state and panic", synthMidiAndState },
+        { "Synth sequence recall and immediate live monitoring in both products", sequenceRecallAndLiveMonitoring },
         { "Expanded editor layout and PNG rendering", editorSnapshot }
     };
     int failures = 0;
