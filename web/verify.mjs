@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { TRACKS, EFFECTS, SYNTH_BANKS, groove, blankPattern, clonePattern, voice, renderDry, renderFlip, renderBar, renderSynthBar, wavetableSample, makeFlip, variationSeed } from './engine.mjs';
+import { chordNotes, synthPattern, synthSequenceEvents } from './synth-sequence.mjs';
 
 const settings = { tempo: 96, swing: .18, dust: .34, amount: .65, mix: .8, repeatSwing: 0, speed: 0, protect: true, effects: EFFECTS.slice(1), enabled: true, levels: [.95,.7,.55,.5,.45,.65,.6,.4], muted: Array(8).fill(false) };
 const finite = data => { for (const x of data) assert.ok(Number.isFinite(x) && Math.abs(x) <= 1, 'Audio must remain finite and bounded'); };
@@ -53,9 +54,24 @@ test('Sixteen-voice wavetable synth morphs three banks before FLIP', () => {
     finite(audio); assert.ok(audio.some(x => Math.abs(x) > .05), bank + ' must produce audio');
   }
   const synth = {enabled:true,bank:'warm',position:.6,level:.5,tune:0,cutoff:6000,attack:.02,decay:.1,sustain:.7,release:.2};
-  const withSynth = renderBar(blankPattern(), {...settings,synth,synthNotes:[{note:48,velocity:.9},{note:55,velocity:.8}]}, 321, 8000);
+  const withSynth = renderBar(blankPattern(), {...settings,synth,synthSequenceEnabled:true,synthPattern:synthPattern('chords')}, 321, 8000);
   const withoutSynth = renderBar(blankPattern(), settings, 321, 8000);
   assert.notDeepEqual(withSynth.dry, withoutSynth.dry); assert.notDeepEqual(withSynth.audio, withSynth.dry);
+});
+test('Synth sequence plays multiple notes/chords in one bar with gate, rests and swing', () => {
+  assert.deepEqual(chordNotes(60,1),[60,64,67]); assert.deepEqual(chordNotes(60,2),[60,63,67]);
+  assert.deepEqual(chordNotes(-1,1),[]); assert.deepEqual(chordNotes(127,1),[127]);
+  const pattern=synthPattern('blank'); pattern[2]={note:60,chord:0,velocity:1,gate:.3}; pattern[6]={note:67,chord:2,velocity:1,gate:.3}; pattern[10]={note:72,chord:0,velocity:1,gate:.3};
+  const synth={enabled:true,bank:'classic',position:0,level:.7,tune:0,cutoff:6000,attack:.002,decay:.02,sustain:.8,release:.01};
+  const audio=renderBar(blankPattern(),{...settings,tempo:120,swing:0,enabled:false,synth,synthSequenceEnabled:true,synthPattern:pattern},1,8000).audio;
+  for(const start of [2000,6000,10000]) assert.ok(audio.slice(start,start+300).some(x=>Math.abs(x)>.02),'A note/chord must start at each programmed step');
+  for(const start of [0,4000,8000,12000]) assert.ok(audio.slice(start,start+300).every(x=>x===0),'Rest and note-off timing must be silent');
+  pattern[1]={note:62,chord:0,velocity:.6,gate:.5};
+  const straight=synthSequenceEvents(pattern,120,0),swung=synthSequenceEvents(pattern,120,.6);
+  assert.ok(swung[0].start>straight[0].start); assert.ok(swung[0].duration<straight[0].duration);
+  assert.deepEqual(renderBar(blankPattern(),{...settings,synth,synthSequenceEnabled:false,synthPattern:pattern},1,8000).audio,new Float32Array(20000));
+  const app=readFileSync('app.mjs','utf8');
+  assert.ok(!app.includes('synthNotes:') && !/synthBus\.gain\.setTargetAtTime\(0/.test(app),'Live notes must never be snapshotted once per bar or muted by PLAY');
 });
 test('Static entrypoint has all controls and assets', () => {
   const html=readFileSync('index.html','utf8'),app=readFileSync('app.mjs','utf8');

@@ -1,3 +1,4 @@
+import { synthSequenceEvents } from './synth-sequence.mjs';
 export const TRACKS = [
   { id: 'kick', name: 'Kick', note: 'LOW / ROUND', color: '#f2a65a' },
   { id: 'snare', name: 'Snare', note: 'BODY / SNAP', color: '#eecb65' },
@@ -46,19 +47,24 @@ export function renderSynthBar(notes = [], settings = {}, length, sr = SAMPLE_RA
   const sustain = Math.max(0, Math.min(1, settings.sustain ?? .72)), release = Math.max(.002, settings.release ?? .45);
   const cutoff = Math.max(120, Math.min(18000, settings.cutoff ?? 7200));
   const alpha = 1 - Math.exp(-TAU * cutoff / sr), duration = length / sr;
-  notes.slice(0, 16).forEach(noteValue => {
+  notes.forEach(noteValue => {
     const note = typeof noteValue === 'number' ? noteValue : noteValue.note;
     const velocity = typeof noteValue === 'number' ? .82 : (noteValue.velocity ?? .82);
-    const frequency = noteFrequency(note, settings.tune ?? 0);
+    if (!Number.isInteger(note) || note < 0 || note > 127) return;
+    const start = noteValue.start ?? 0, held = noteValue.duration ?? duration;
+    const frequency = Math.min(sr * .45, noteFrequency(note, settings.tune ?? 0));
+    const envelopeAt = t => t < attack ? Math.max(0,t / attack) : t < attack + decay ? 1 - (1 - sustain) * ((t - attack) / decay) : sustain;
+    const releasedFrom = envelopeAt(held);
     let phase = 0, low = 0;
-    for (let i = 0; i < length; i++) {
-      const t = i / sr, tail = Math.max(0, duration - t);
-      const envelope = t < attack ? t / attack : t < attack + decay ? 1 - (1 - sustain) * ((t - attack) / decay) : sustain;
-      const end = tail < release ? tail / release : 1;
+    // Negative starts carry the previous bar's release across the loop boundary.
+    const first = Math.floor(start * sr), end = Math.min(length, Math.ceil((start + held + release) * sr));
+    for (let i = first; i < end; i++) {
+      const t = i / sr - start;
+      const envelope = t < held ? envelopeAt(t) : releasedFrom * Math.exp(-9 * (t - held) / release);
       phase = (phase + frequency / sr) % 1;
       const raw = wavetableSample(settings.bank ?? 'classic', settings.position ?? .22, phase);
       low += alpha * (raw - low);
-      out[i] += low * envelope * end * velocity * level * .22;
+      if (i >= 0) out[i] += low * envelope * velocity * level * .22;
     }
   });
   for (let i = 0; i < out.length; i++) out[i] = Math.tanh(out[i] * 1.35);
@@ -220,8 +226,11 @@ export function renderFlip(dry, flip, settings, sr = SAMPLE_RATE) {
 }
 export function renderBar(pattern, settings, seed, sr = SAMPLE_RATE) {
   const flip = makeFlip(seed, settings), dry = renderDry(pattern, settings, sr);
-  if (settings.synth?.enabled && settings.synthNotes?.length) {
-    const synth = renderSynthBar(settings.synthNotes, settings.synth, dry.length, sr);
+  if (settings.synth?.enabled && settings.synthSequenceEnabled) {
+    const notes = synthSequenceEvents(settings.synthPattern, settings.tempo, settings.swing);
+    const duration = dry.length / sr;
+    const tails = notes.filter(n => n.start + n.duration + settings.synth.release > duration).map(n => ({...n,start:n.start-duration}));
+    const synth = renderSynthBar([...tails,...notes], settings.synth, dry.length, sr);
     for (let i = 0; i < dry.length; i++) dry[i] = Math.tanh(dry[i] + synth[i]);
   }
   return { dry, audio: renderFlip(dry, flip, settings, sr), flip, seed, duration: dry.length / sr };
