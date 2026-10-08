@@ -5,14 +5,17 @@ const state = {
   pattern: groove('pocket'), tempo: 96, swing: .18, dust: .34, volume: .7,
   amount: .65, mix: .8, repeatSwing: 0, speed: 0, auto: 0, protect: true,
   effects: EFFECTS.slice(1), enabled: false, seed: 909,
-  levels: [.95, .7, .55, .5, .45, .65, .6, .4], muted: Array(8).fill(false)
+  levels: [.95, .7, .55, .5, .45, .65, .6, .4], muted: Array(8).fill(false),
+  synth: { enabled: true, bank: 'classic', position: .22, level: .55, tune: 0, cutoff: 7200, attack: .03, decay: .18, sustain: .72, release: .45 }
 };
 let context, output, limiter, playing = false, starting = false, startGeneration = 0;
+let synthBus, midiAccess;
 let timer, animation, nextTime = 0, scheduledBars = 0, sequenceAnchor = 0, revision = 0;
 let events = [], sources = new Set(), shownEvent = null, previousStep = -1, previousBar = -1;
 let previewTimer;
 const stepButtons = [], trackElements = [], mapCells = [];
-const snapshot = () => ({ ...state, pattern: state.pattern.map(x => [...x]), effects: [...state.effects], levels: [...state.levels], muted: [...state.muted] });
+const activeNotes = new Map(), pendingNotes = new Set(), keyboardPointers = new Map(), keyButtons = new Map();
+const snapshot = () => ({ ...state, pattern: state.pattern.map(x => [...x]), effects: [...state.effects], levels: [...state.levels], muted: [...state.muted], synth: { ...state.synth }, synthNotes: [...activeNotes].map(([note, entry]) => ({ note, velocity: entry.velocity })) });
 const announce = message => { $('audio-message').textContent = message; };
 
 for (let s = 0; s < 16; s++) {
@@ -58,6 +61,20 @@ TRACKS.forEach((track, tr) => {
   fillRange(level); row.append(steps, level); $('tracks').append(row); trackElements.push({ row, mute, pad, level });
 });
 for (let s = 0; s < 16; s++) { const cell = document.createElement('span'); cell.className = 'effect-cell'; $('flip-map').append(cell); mapCells.push(cell); }
+
+const blackPitch = new Set([1, 3, 6, 8, 10]);
+const whitePitch = [0, 2, 4, 5, 7, 9, 11];
+for (let note = 48; note <= 72; note++) {
+  const pitch = note % 12, key = document.createElement('button');
+  key.className = 'piano-key ' + (blackPitch.has(pitch) ? 'black' : 'white'); key.dataset.note = note;
+  key.setAttribute('aria-label', `Play MIDI note ${note}`); key.style.setProperty('--note', note - 48);
+  const octave = Math.floor((note - 48) / 12), before = whitePitch.filter(value => value < pitch).length;
+  key.style.setProperty('--left', `${(octave * 7 + before) / 15 * 100}%`);
+  key.addEventListener('pointerdown', event => { event.preventDefault(); key.setPointerCapture(event.pointerId); keyboardPointers.set(event.pointerId, note); noteOn(note, .82); });
+  key.addEventListener('pointerup', event => { noteOff(keyboardPointers.get(event.pointerId)); keyboardPointers.delete(event.pointerId); });
+  key.addEventListener('pointercancel', event => { noteOff(keyboardPointers.get(event.pointerId)); keyboardPointers.delete(event.pointerId); });
+  $('keyboard').append(key); keyButtons.set(note, key);
+}
 
 function refreshStep(tr, s) {
   const value = state.pattern[tr][s], button = stepButtons[tr][s];
@@ -120,12 +137,72 @@ async function enableAudio() {
     output = context.createGain(); output.gain.value = state.volume;
     limiter = context.createDynamicsCompressor(); limiter.threshold.value = -4; limiter.knee.value = 4;
     limiter.ratio.value = 12; limiter.attack.value = .001; limiter.release.value = .06;
+    synthBus = context.createGain(); synthBus.gain.value = 1; synthBus.connect(limiter);
     limiter.connect(output); output.connect(context.destination);
     context.addEventListener('statechange', () => { if (playing && context.state !== 'running') { stop(); announce('Audio paused. Press PLAY to continue.'); } });
   }
   await context.resume();
   if (context.state !== 'running') throw new Error('Sound is paused. Press PLAY to try again.');
   $('power-led').parentElement.classList.add('active'); $('power-label').textContent = 'AUDIO READY';
+}
+
+const frameHarmonics = {
+  classic: [[1], [1,0,-1/9,0,1/25,0,-1/49], [1,-.5,.333,-.25,.2,-.167,.143,-.125], [1,0,.333,0,.2,0,.143]],
+  warm: [[1,.16,.05], [1,.28,.08,.03], [1,.35,.18,.08,.03], [1,0,.28,0,.16,0,.08]],
+  spectral: [[1,0,0,0,0,0,.42], [1,0,0,0,.38,0,0,0,0,0,.24], [1,0,0,0,0,0,0,.44,0,0,0,0,.25], [1,0,0,0,0,0,0,0,.48,0,0,0,0,0,0,.28]]
+};
+const waveCache = new Map();
+function periodicWave(bank, frame) {
+  const id = bank + frame; if (waveCache.has(id)) return waveCache.get(id);
+  const imag = new Float32Array([0, ...(frameHarmonics[bank] || frameHarmonics.classic)[frame]]), real = new Float32Array(imag.length);
+  const wave = context.createPeriodicWave(real, imag, { disableNormalization: false }); waveCache.set(id, wave); return wave;
+}
+function frameWeights(position) {
+  const p = Math.max(0, Math.min(1, position)) * 3, base = Math.min(2, Math.floor(p)), mix = p - base;
+  return [0,1,2,3].map(i => i === base ? 1 - mix : i === base + 1 ? mix : 0);
+}
+function refreshVoiceDisplay() {
+  const p = state.synth.position * 3, frame = Math.min(2, Math.floor(p));
+  $('synth-display').textContent = `${state.synth.bank.toUpperCase()} · ${frame + 1}→${frame + 2}`;
+  $('voice-count').textContent = `${activeNotes.size} / 16 VOICES`;
+}
+async function noteOn(note, velocity = .82) {
+  if (!Number.isFinite(note) || activeNotes.has(note) || pendingNotes.has(note) || !state.synth.enabled) return;
+  pendingNotes.add(note);
+  try { await enableAudio(); } catch (error) { pendingNotes.delete(note); announce(error.message || 'Sound could not start.'); return; }
+  if (!pendingNotes.delete(note) || !state.synth.enabled) return;
+  if (activeNotes.size >= 16) noteOff(activeNotes.keys().next().value, true);
+  const now = context.currentTime, envelope = context.createGain(), filter = context.createBiquadFilter();
+  envelope.gain.setValueAtTime(0, now); envelope.gain.linearRampToValueAtTime(velocity * state.synth.level * .2, now + state.synth.attack);
+  envelope.gain.linearRampToValueAtTime(velocity * state.synth.level * .2 * state.synth.sustain, now + state.synth.attack + state.synth.decay);
+  filter.type = 'lowpass'; filter.Q.value = .65; filter.frequency.value = state.synth.cutoff; filter.connect(envelope); envelope.connect(synthBus);
+  const gains = [], oscillators = [], weights = frameWeights(state.synth.position);
+  for (let frame = 0; frame < 4; frame++) {
+    const osc = context.createOscillator(), gain = context.createGain(); osc.setPeriodicWave(periodicWave(state.synth.bank, frame));
+    osc.frequency.value = 440 * 2 ** ((note - 69) / 12); osc.detune.value = state.synth.tune * 100; gain.gain.value = weights[frame];
+    osc.connect(gain); gain.connect(filter); osc.start(now); oscillators.push(osc); gains.push(gain);
+  }
+  activeNotes.set(note, { note, velocity, envelope, filter, oscillators, gains }); keyButtons.get(note)?.classList.add('active');
+  refreshVoiceDisplay(); changed();
+}
+function noteOff(note, immediate = false) {
+  pendingNotes.delete(note);
+  const entry = activeNotes.get(note); if (!entry || !context) return;
+  const now = context.currentTime, release = immediate ? .012 : state.synth.release;
+  entry.envelope.gain.cancelScheduledValues(now); entry.envelope.gain.setTargetAtTime(0, now, Math.max(.003, release / 5));
+  entry.oscillators.forEach(osc => { try { osc.stop(now + release + .05); } catch {} });
+  setTimeout(() => { entry.oscillators.forEach(osc => osc.disconnect()); entry.gains.forEach(g => g.disconnect()); entry.filter.disconnect(); entry.envelope.disconnect(); }, (release + .1) * 1000);
+  activeNotes.delete(note); keyButtons.get(note)?.classList.remove('active'); refreshVoiceDisplay(); changed();
+}
+function panic() { pendingNotes.clear(); [...activeNotes.keys()].forEach(note => noteOff(note, true)); announce('Synth voices cleared.'); }
+function refreshLiveSynth() {
+  if (!context) return;
+  const now = context.currentTime, weights = frameWeights(state.synth.position);
+  activeNotes.forEach(entry => {
+    entry.envelope.gain.setTargetAtTime(entry.velocity * state.synth.level * .2 * state.synth.sustain, now, .015);
+    entry.filter.frequency.setTargetAtTime(state.synth.cutoff, now, .015);
+    entry.oscillators.forEach((osc, i) => { osc.detune.setTargetAtTime(state.synth.tune * 100, now, .015); osc.setPeriodicWave(periodicWave(state.synth.bank, i)); entry.gains[i].gain.setTargetAtTime(weights[i], now, .015); });
+  });
 }
 function sourceFor(data, start, duration) {
   const buffer = context.createBuffer(1, data.length, context.sampleRate); buffer.copyToChannel(data, 0);
@@ -169,6 +246,7 @@ async function play() {
     if (generation !== startGeneration) return;
     output.gain.cancelScheduledValues(context.currentTime); output.gain.setValueAtTime(state.volume, context.currentTime);
     playing = true; scheduledBars = 0; sequenceAnchor = 0; events = []; shownEvent = null; previousStep = -1; previousBar = -1;
+    synthBus.gain.setTargetAtTime(0, context.currentTime, .015);
     nextTime = context.currentTime + .07; schedule(); timer = setInterval(schedule, 25);
     $('play').classList.add('playing'); $('play').querySelector('span').textContent = 'PAUSE'; $('play').setAttribute('aria-label', 'Pause beat');
     $('sequence-status').textContent = 'PLAYING'; announce('Playing. Edits land at bar boundaries.'); tick();
@@ -178,8 +256,10 @@ async function play() {
 function stop() {
   ++startGeneration; playing = false; clearInterval(timer); cancelAnimationFrame(animation);
   if (context && output) {
-    const now = context.currentTime; output.gain.cancelScheduledValues(now); output.gain.setTargetAtTime(0, now, .003);
-    sources.forEach(source => { try { source.stop(now + .025); } catch {} });
+    const now = context.currentTime;
+    sources.forEach(source => { try { source.stop(now); } catch {} });
+    output.gain.cancelScheduledValues(now); output.gain.setTargetAtTime(state.volume, now, .012);
+    synthBus.gain.setTargetAtTime(1, now, .015);
   }
   events = []; shownEvent = null; previousStep = -1; previousBar = -1;
   stepButtons.flat().forEach(b => b.classList.remove('current')); mapCells.forEach(c => c.classList.remove('current'));
@@ -240,13 +320,47 @@ document.querySelectorAll('[data-effect]').forEach(button => button.addEventList
   state.effects = included ? state.effects.filter(x => x !== effect) : [...state.effects, effect];
   button.setAttribute('aria-pressed', !included); changed();
 }));
-document.addEventListener('keydown', e => {
-  if (e.code !== 'Space' || e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.target.closest('input,select,button,textarea,[contenteditable]')) return;
-  e.preventDefault(); play();
+
+$('synth-power').addEventListener('click', () => {
+  state.synth.enabled = !state.synth.enabled; $('synth-power').setAttribute('aria-pressed', state.synth.enabled);
+  $('synth-power').lastChild.textContent = state.synth.enabled ? 'SYNTH ON' : 'SYNTH OFF';
+  if (!state.synth.enabled) panic(); changed();
 });
-document.addEventListener('visibilitychange', () => { if (document.hidden && playing) { stop(); announce('Playback paused while the tab is hidden. Press PLAY to continue.'); } });
-window.addEventListener('pagehide', () => { if (playing) stop(); });
-refreshTracks(); refreshModes(); preview();
+$('panic').addEventListener('click', panic);
+$('synth-bank').addEventListener('change', () => { state.synth.bank = $('synth-bank').value; refreshLiveSynth(); refreshVoiceDisplay(); changed(); });
+const synthRanges = {
+  'wave-position': { key: 'position', read: v => v / 100, label: v => `${v}%` },
+  'synth-level': { key: 'level', read: v => v / 100, label: v => `${v}%` },
+  'synth-tune': { key: 'tune', read: v => v, label: v => `${v > 0 ? '+' : ''}${v} st` },
+  'synth-cutoff': { key: 'cutoff', read: v => v, label: v => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : `${v}Hz` },
+  'synth-attack': { key: 'attack', read: v => v / 1000, label: v => `${v}ms` },
+  'synth-decay': { key: 'decay', read: v => v / 1000, label: v => `${v}ms` },
+  'synth-sustain': { key: 'sustain', read: v => v / 100, label: v => `${v}%` },
+  'synth-release': { key: 'release', read: v => v / 1000, label: v => `${v}ms` }
+};
+Object.entries(synthRanges).forEach(([id, config]) => {
+  const input = $(id); fillRange(input);
+  input.addEventListener('input', () => { const value = Number(input.value); state.synth[config.key] = config.read(value); $(id + '-value').textContent = config.label(value); fillRange(input); refreshLiveSynth(); refreshVoiceDisplay(); changed(); });
+});
+$('midi').addEventListener('click', async () => {
+  if (!navigator.requestMIDIAccess) { announce('Web MIDI is not available in this browser.'); return; }
+  try {
+    midiAccess = await navigator.requestMIDIAccess();
+    const attach = () => midiAccess.inputs.forEach(input => { input.onmidimessage = event => { const [status, note, velocity] = event.data, command = status & 0xf0; if (command === 0x90 && velocity) noteOn(note, velocity / 127); else if (command === 0x80 || (command === 0x90 && !velocity)) noteOff(note); }; });
+    attach(); midiAccess.onstatechange = attach; $('midi').classList.add('connected'); $('midi').textContent = 'MIDI READY'; announce(`${midiAccess.inputs.size} MIDI input${midiAccess.inputs.size === 1 ? '' : 's'} connected.`);
+  } catch { announce('MIDI access was not enabled. The on-screen and computer keyboard still work.'); }
+});
+const typingKeys = new Map(Object.entries({ KeyA:48, KeyW:49, KeyS:50, KeyE:51, KeyD:52, KeyF:53, KeyT:54, KeyG:55, KeyY:56, KeyH:57, KeyU:58, KeyJ:59, KeyK:60 }));
+document.addEventListener('keydown', e => {
+  if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.target.closest('input,select,button,textarea,[contenteditable]')) return;
+  if (typingKeys.has(e.code)) { e.preventDefault(); noteOn(typingKeys.get(e.code), .82); return; }
+  if (e.code === 'Space') { e.preventDefault(); play(); }
+});
+document.addEventListener('keyup', e => { if (typingKeys.has(e.code)) { e.preventDefault(); noteOff(typingKeys.get(e.code)); } });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { panic(); if (playing) { stop(); announce('Playback paused while the tab is hidden. Press PLAY to continue.'); } } });
+window.addEventListener('blur', panic);
+window.addEventListener('pagehide', () => { if (playing) stop(); panic(); });
+refreshTracks(); refreshModes(); refreshVoiceDisplay(); preview();
 
 // Tools share the same sequencer state and actions as the visible controls.
 if (document.modelContext?.registerTool) {

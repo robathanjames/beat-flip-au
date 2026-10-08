@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
-import { TRACKS, EFFECTS, groove, blankPattern, clonePattern, voice, renderDry, renderFlip, renderBar, makeFlip, variationSeed } from './engine.mjs';
+import { TRACKS, EFFECTS, SYNTH_BANKS, groove, blankPattern, clonePattern, voice, renderDry, renderFlip, renderBar, renderSynthBar, wavetableSample, makeFlip, variationSeed } from './engine.mjs';
 
 const settings = { tempo: 96, swing: .18, dust: .34, amount: .65, mix: .8, repeatSwing: 0, speed: 0, protect: true, effects: EFFECTS.slice(1), enabled: true, levels: [.95,.7,.55,.5,.45,.65,.6,.4], muted: Array(8).fill(false) };
 const finite = data => { for (const x of data) assert.ok(Number.isFinite(x) && Math.abs(x) <= 1, 'Audio must remain finite and bounded'); };
@@ -44,6 +44,18 @@ test('Tempo and sample-rate boundaries stay musical and bounded', () => {
     assert.ok(Math.abs(a.duration-240/tempo)<1/sr);finite(a.audio);
   }
   assert.equal(variationSeed(909,0),909);assert.notEqual(variationSeed(909,1),909);assert.equal(variationSeed(909,1048575),909);
+});
+test('Sixteen-voice wavetable synth morphs three banks before FLIP', () => {
+  for (const bank of SYNTH_BANKS) {
+    const values = [0,.25,.5,.75,1].map(position => wavetableSample(bank, position, .137));
+    assert.ok(values.every(Number.isFinite)); assert.ok(new Set(values.map(x => x.toFixed(6))).size > 1, bank + ' must morph');
+    const audio = renderSynthBar(Array.from({length:16}, (_,i) => ({note:48+i,velocity:.7})), {enabled:true,bank,position:.41,level:.55,tune:0,cutoff:7200,attack:.03,decay:.18,sustain:.72,release:.45}, 44100, 44100);
+    finite(audio); assert.ok(audio.some(x => Math.abs(x) > .05), bank + ' must produce audio');
+  }
+  const synth = {enabled:true,bank:'warm',position:.6,level:.5,tune:0,cutoff:6000,attack:.02,decay:.1,sustain:.7,release:.2};
+  const withSynth = renderBar(blankPattern(), {...settings,synth,synthNotes:[{note:48,velocity:.9},{note:55,velocity:.8}]}, 321, 8000);
+  const withoutSynth = renderBar(blankPattern(), settings, 321, 8000);
+  assert.notDeepEqual(withSynth.dry, withoutSynth.dry); assert.notDeepEqual(withSynth.audio, withSynth.dry);
 });
 test('Static entrypoint has all controls and assets', () => {
   const html=readFileSync('index.html','utf8'),app=readFileSync('app.mjs','utf8');

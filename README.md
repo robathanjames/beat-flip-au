@@ -2,13 +2,19 @@
 
 A lo-fi drum machine, 16-step sequencer, 16-voice wavetable synthesizer and beat-flipping effect for **Logic Pro and other macOS Audio Unit hosts**.
 
-![Dustbox DB-09 plugin interface](docs/screenshots/dustbox-db09.png)
+![Dustbox DB-09 walnut and charcoal web workstation](docs/screenshots/dustbox-web-desktop.png)
 
-[Interface screenshot and version 0.3.2 verification](docs/screenshots/README.md)
+[Native and web interface screenshots](docs/screenshots/README.md)
 
 Put it on a drum loop or drum bus, let a full bar play, and press **FLIP**. The plugin generates a new tempo-synced pattern of stutters, reverse slices, rearranged hits, rhythmic cuts, and half-speed fragments. Keep a pattern you like, or let Auto Flip generate variations at bar boundaries. Downbeat protection keeps the groove anchored by default.
 
-**Version 0.3.1 introduces the Dustbox name and vintage hardware interface. Version 0.3.0 added the Drum Lab from the web app: eight synthesized voices, an editable 16-step sequencer, groove presets, track mutes and levels, Dust, and groove swing.** The portable DSP engine passes behavioral and sanitizer tests. See the current [validation status](docs/VALIDATION.md) before using it in a production session. There is no finished, signed installer.
+**Version 0.4.0 adds the 16-voice wavetable instrument to the Audio Unit and the web app. Version 0.3.1 introduced the Dustbox name and vintage hardware interface; version 0.3.0 added the Drum Lab.** The portable DSP engine passes behavioral and sanitizer tests. See the current [validation status](docs/VALIDATION.md) before using it in a production session. There is no finished, signed installer.
+
+## Web workstation
+
+The hosted [Dustbox DB-09 web app](https://beat-flip-web.tj25h4ksw8.chatgpt.site) now combines the lo-fi 909 drum machine, 16-step sequencer, FLIP engine, and a playable 16-voice wavetable synth. It mirrors the native synth's Classic, Warm, and Spectral banks, four-frame Wave Position morphing, Level, ±24-semitone Tune, low-pass Cutoff, ADSR, panic, on-screen keyboard, computer keys, and optional Web MIDI. Held notes are rendered into the next bar before FLIP, so chords and drums can be rearranged together.
+
+The refreshed interface uses walnut side panels, charcoal instrument faces, aluminium-centered knobs, orange/blue rocker-style controls, and shaded piano keys. [Desktop, mobile, and native screenshots](docs/screenshots/README.md).
 
 The AU identity, bundle ID and automation parameter IDs retain the original Beat Flip identifiers, so saved projects still recall the same plugin. When upgrading, move the old `Beat Flip.component` out of the Components folder before installing `Dustbox.component` to avoid duplicate AU registrations.
 

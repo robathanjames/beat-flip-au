@@ -11,6 +11,59 @@ export const TRACKS = [
 export const EFFECTS = ['live', 'stutter', 'reverse', 'shuffle', 'gate', 'half'];
 export const EFFECT_LABELS = ['LIVE', 'STUT', 'REV', 'JUMP', 'GATE', 'HALF'];
 export const SAMPLE_RATE = 44100;
+export const SYNTH_BANKS = ['classic', 'warm', 'spectral'];
+const TAU = Math.PI * 2;
+const synthFrames = {
+  classic: [
+    n => Math.sin(TAU * n),
+    n => 2 * Math.abs(2 * (n - Math.floor(n + .5))) - 1,
+    n => 2 * (n - Math.floor(n + .5)),
+    n => Math.sin(TAU * n) >= 0 ? 1 : -1
+  ],
+  warm: [
+    n => Math.tanh(1.8 * Math.sin(TAU * n)) / Math.tanh(1.8),
+    n => .78 * Math.sin(TAU * n) + .22 * Math.sin(TAU * 2 * n),
+    n => .7 * Math.sin(TAU * n) + .2 * Math.sin(TAU * 2 * n) + .1 * Math.sin(TAU * 3 * n),
+    n => .62 * Math.sin(TAU * n) + .24 * Math.sin(TAU * 3 * n) + .14 * Math.sin(TAU * 5 * n)
+  ],
+  spectral: [
+    n => .7 * Math.sin(TAU * n) + .3 * Math.sin(TAU * 7 * n),
+    n => .62 * Math.sin(TAU * n) + .24 * Math.sin(TAU * 5 * n) + .14 * Math.sin(TAU * 11 * n),
+    n => .55 * Math.sin(TAU * n) + .28 * Math.sin(TAU * 8 * n) + .17 * Math.sin(TAU * 13 * n),
+    n => .5 * Math.sin(TAU * n) + .3 * Math.sin(TAU * 9 * n) + .2 * Math.sin(TAU * 16 * n)
+  ]
+};
+export function wavetableSample(bankName, position, phase) {
+  const frames = synthFrames[SYNTH_BANKS.includes(bankName) ? bankName : 'classic'];
+  const p = Math.max(0, Math.min(1, position)) * 3, a = Math.min(2, Math.floor(p)), mix = p - a;
+  return frames[a](phase) * (1 - mix) + frames[a + 1](phase) * mix;
+}
+const noteFrequency = (note, tune = 0) => 440 * 2 ** ((note + tune - 69) / 12);
+export function renderSynthBar(notes = [], settings = {}, length, sr = SAMPLE_RATE) {
+  const out = new Float32Array(length), level = settings.level ?? .55;
+  if (!settings.enabled || !notes.length || level <= 0) return out;
+  const attack = Math.max(.002, settings.attack ?? .03), decay = Math.max(.002, settings.decay ?? .18);
+  const sustain = Math.max(0, Math.min(1, settings.sustain ?? .72)), release = Math.max(.002, settings.release ?? .45);
+  const cutoff = Math.max(120, Math.min(18000, settings.cutoff ?? 7200));
+  const alpha = 1 - Math.exp(-TAU * cutoff / sr), duration = length / sr;
+  notes.slice(0, 16).forEach(noteValue => {
+    const note = typeof noteValue === 'number' ? noteValue : noteValue.note;
+    const velocity = typeof noteValue === 'number' ? .82 : (noteValue.velocity ?? .82);
+    const frequency = noteFrequency(note, settings.tune ?? 0);
+    let phase = 0, low = 0;
+    for (let i = 0; i < length; i++) {
+      const t = i / sr, tail = Math.max(0, duration - t);
+      const envelope = t < attack ? t / attack : t < attack + decay ? 1 - (1 - sustain) * ((t - attack) / decay) : sustain;
+      const end = tail < release ? tail / release : 1;
+      phase = (phase + frequency / sr) % 1;
+      const raw = wavetableSample(settings.bank ?? 'classic', settings.position ?? .22, phase);
+      low += alpha * (raw - low);
+      out[i] += low * envelope * end * velocity * level * .22;
+    }
+  });
+  for (let i = 0; i < out.length; i++) out[i] = Math.tanh(out[i] * 1.35);
+  return out;
+}
 export const blankPattern = () => TRACKS.map(() => Array(16).fill(0));
 export const clonePattern = p => p.map(row => [...row]);
 export function groove(name) {
@@ -167,5 +220,9 @@ export function renderFlip(dry, flip, settings, sr = SAMPLE_RATE) {
 }
 export function renderBar(pattern, settings, seed, sr = SAMPLE_RATE) {
   const flip = makeFlip(seed, settings), dry = renderDry(pattern, settings, sr);
+  if (settings.synth?.enabled && settings.synthNotes?.length) {
+    const synth = renderSynthBar(settings.synthNotes, settings.synth, dry.length, sr);
+    for (let i = 0; i < dry.length; i++) dry[i] = Math.tanh(dry[i] + synth[i]);
+  }
   return { dry, audio: renderFlip(dry, flip, settings, sr), flip, seed, duration: dry.length / sr };
 }
