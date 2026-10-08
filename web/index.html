@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#d9d7cb">
-  <meta name="description" content="Program an eight-voice lo-fi drum machine, then flip your beat into tempo-synced stutters, reverses, and new pockets.">
+  <meta name="description" content="A lo-fi 909 drum machine, 16-voice wavetable synthesizer, sequencer and tempo-synced beat-flip engine.">
   <title>Dustbox · DB-09</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='3' fill='%23202622'/%3E%3Cpath d='M7 6h9c7 0 10 4 10 10s-3 10-10 10H7zm6 5v10h3c3 0 4-2 4-5s-1-5-4-5z' fill='%23ed8a3c'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="styles.css">
@@ -13,7 +13,7 @@
   <main class="machine">
     <header class="masthead">
       <div class="brand"><h1>dustbox<span>RHYTHM COMPOSER</span></h1></div>
-      <div class="mast-note"><strong>DB-09</strong><span>DRUM MACHINE + FLIP ENGINE</span></div>
+      <div class="mast-note"><strong>DB-09</strong><span>RHYTHM + WAVETABLE WORKSTATION</span></div>
       <div class="power"><span id="power-led" aria-hidden="true"></span><span id="power-label">AUDIO STANDBY</span></div>
     </header>
 
@@ -24,6 +24,26 @@
       <div class="fader"><label for="dust">DUST <output id="dust-value" for="dust">34%</output></label><input id="dust" type="range" min="0" max="100" value="34" aria-describedby="dust-help"><span id="dust-help" class="sr-only">Adds warmer filtering, saturation, and reduced bit depth.</span></div>
       <div class="fader volume"><label for="volume">VOLUME <output id="volume-value" for="volume">70%</output></label><input id="volume" type="range" min="0" max="100" value="70"></div>
       <div class="bar-counter"><span>BAR / STEP</span><strong id="position">01 <small>/</small> 01</strong></div>
+    </section>
+
+    <section class="synth-panel" aria-labelledby="synth-title">
+      <div class="section-top"><div class="section-name"><h2 id="synth-title">POLY WAVETABLE</h2><span class="badge">16 VOICES / 4 FRAMES</span></div><div class="synth-actions"><button id="synth-power" aria-pressed="true"><i></i>SYNTH ON</button><button id="midi" class="quiet">MIDI</button><button id="panic" class="quiet">PANIC</button></div></div>
+      <div class="synth-face">
+        <div class="synth-controls">
+          <label class="bank-control">WAVE BANK<select id="synth-bank"><option value="classic">Classic</option><option value="warm">Warm</option><option value="spectral">Spectral</option></select></label>
+          <div class="fader"><label for="wave-position">WAVE POS <output id="wave-position-value" for="wave-position">22%</output></label><input id="wave-position" type="range" min="0" max="100" value="22"></div>
+          <div class="fader"><label for="synth-level">LEVEL <output id="synth-level-value" for="synth-level">55%</output></label><input id="synth-level" type="range" min="0" max="100" value="55"></div>
+          <div class="fader"><label for="synth-tune">TUNE <output id="synth-tune-value" for="synth-tune">0 st</output></label><input id="synth-tune" type="range" min="-24" max="24" value="0"></div>
+          <div class="fader"><label for="synth-cutoff">CUTOFF <output id="synth-cutoff-value" for="synth-cutoff">7.2k</output></label><input id="synth-cutoff" type="range" min="120" max="18000" value="7200"></div>
+          <div class="fader"><label for="synth-attack">ATTACK <output id="synth-attack-value" for="synth-attack">30ms</output></label><input id="synth-attack" type="range" min="2" max="2000" value="30"></div>
+          <div class="fader"><label for="synth-decay">DECAY <output id="synth-decay-value" for="synth-decay">180ms</output></label><input id="synth-decay" type="range" min="2" max="2000" value="180"></div>
+          <div class="fader"><label for="synth-sustain">SUSTAIN <output id="synth-sustain-value" for="synth-sustain">72%</output></label><input id="synth-sustain" type="range" min="0" max="100" value="72"></div>
+          <div class="fader"><label for="synth-release">RELEASE <output id="synth-release-value" for="synth-release">450ms</output></label><input id="synth-release" type="range" min="5" max="3000" value="450"></div>
+        </div>
+        <div class="synth-display"><span>BANK / FRAME</span><strong id="synth-display">CLASSIC · 1→2</strong><small id="voice-count">0 / 16 VOICES</small></div>
+        <div id="keyboard" class="keyboard" aria-label="Two octave synthesizer keyboard"></div>
+        <div class="keyboard-note"><span>PLAY: A W S E D F T G Y H U J K</span><span>HELD NOTES ENTER THE NEXT FLIPPED BAR</span></div>
+      </div>
     </section>
 
     <section class="sequencer" aria-labelledby="sequencer-title">
@@ -44,7 +64,7 @@
       </div>
       <div class="flip-monitor"><div class="monitor-title"><span id="monitor-label">ORIGINAL BAR</span><span id="seed-label">SEED 0909</span></div><div id="flip-map" class="flip-map" aria-label="Effect for each step"></div><canvas id="waveform" width="1400" height="90" aria-label="Waveform of the output bar" role="img"></canvas></div>
     </section>
-    <footer class="machine-footer"><span><b>909-INSPIRED.</b> SYNTHESIZED IN YOUR BROWSER.</span><span id="audio-message" role="status">Press PLAY to turn the sound on. Edits land at bar boundaries.</span><span>DUSTBOX / DB-09</span></footer>
+    <footer class="machine-footer"><span><b>909-INSPIRED.</b> WAVETABLE-POWERED.</span><span id="audio-message" role="status">Press PLAY or touch a key to turn the sound on.</span><span>DUSTBOX / DB-09</span></footer>
   </main>
   <script type="module" src="app.mjs"></script>
 </body>
