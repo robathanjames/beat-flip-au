@@ -12,14 +12,19 @@ public:
         int white=0;
         for(int n=0;n<25;++n) if(!black(n)) {
             const auto key=juce::Rectangle<float>(white++*width,0,width-2,static_cast<float>(getHeight()));
-            g.setColour(held(n)?juce::Colour(0xffd77432):juce::Colour(0xffe5e5d6)); g.fillRoundedRectangle(key,2);
+            const auto face=held(n)?juce::Colour(0xffd77432):juce::Colour(0xffe5e5dc);
+            g.setGradientFill(juce::ColourGradient(face.darker(.2f),key.getX(),0,face,key.getX()+width*.5f,key.getBottom(),false)); g.fillRoundedRectangle(key,2);
+            g.setColour(juce::Colours::black.withAlpha(.18f)); g.fillRect(key.withHeight(7));
             if(n%12==0) { g.setColour(juce::Colour(0xff252c27)); g.setFont(11); g.drawText("C"+juce::String(3+n/12),key.toNearestInt().removeFromBottom(18),juce::Justification::centred); }
         }
         white=0;
         for(int n=0;n<25;++n) {
             if(!black(n)) { ++white; continue; }
-            g.setColour(held(n)?juce::Colour(0xffd77432):juce::Colour(0xff252c27));
-            g.fillRoundedRectangle((white-.32f)*width,0,width*.62f,getHeight()*.62f,2);
+            const auto key=juce::Rectangle<float>((white-.32f)*width,0,width*.62f,getHeight()*.62f);
+            const auto face=held(n)?juce::Colour(0xffd77432):juce::Colour(0xff161819);
+            g.setGradientFill(juce::ColourGradient(face.brighter(.25f),key.getX(),0,face,key.getRight(),key.getBottom(),false));
+            g.fillRoundedRectangle(key,2);
+            g.setColour(face.brighter(.18f)); g.fillRect(key.withTrimmedTop(key.getHeight()-7));
         }
     }
     void mouseDown(const juce::MouseEvent& e) override { grabKeyboardFocus(); changeMouse(noteAt(e.position)); }
