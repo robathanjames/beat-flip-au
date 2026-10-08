@@ -1,5 +1,11 @@
 # Dustbox screenshots
 
+## Native workstation — walnut cabinet redesign
+
+Rendered by the macOS processor test runner from the redesigned editor. The universal Audio Unit and standalone build, processor tests, and Audio Unit validation passed in [the build run](https://github.com/robathanjames/beat-flip-au/actions/runs/37727476224).
+
+![Dustbox native walnut cabinet with drums, FLIP engine and poly wavetable synthesizer](dustbox-native-cabinet.png)
+
 ## Web workstation — walnut cabinet redesign
 
 Captured from the completed browser build at 1440 px and 430 px widths. Both layouts include the new synth, sequencer, and FLIP engine.
