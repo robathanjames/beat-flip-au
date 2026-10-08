@@ -4,6 +4,8 @@ A lo-fi drum machine, independent 16-step drum/synth sequencers, 16-voice waveta
 
 ![Dustbox DB-09 walnut and charcoal web workstation](docs/screenshots/dustbox-web-desktop.png)
 
+![Dustbox native synth sequencer and live keyboard](docs/screenshots/dustbox-native-sequencer.png)
+
 [Native and web interface screenshots](docs/screenshots/README.md)
 
 Put it on a drum loop or drum bus, let a full bar play, and press **FLIP**. The plugin generates a new tempo-synced pattern of stutters, reverse slices, rearranged hits, rhythmic cuts, and half-speed fragments. Keep a pattern you like, or let Auto Flip generate variations at bar boundaries. Downbeat protection keeps the groove anchored by default.
@@ -201,3 +203,4 @@ The FLIP stage changes audio that you hear and bounce. It does not rewrite MIDI 
 | `.github/workflows/build.yml` | Linux tests and macOS AU build/validation. |
 
 The project fetches [JUCE 8.0.15](https://github.com/juce-framework/JUCE/releases/tag/8.0.15). JUCE is licensed separately; see [license notes](LICENSE-NOTES.md).
+
