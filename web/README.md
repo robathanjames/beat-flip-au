@@ -1,52 +1,12 @@
-# Dustbox · Rhythm + Wavetable Workstation
+# Dustbox DB-12 web workstation
 
-Browser-based Dustbox with eight synthesized lo-fi 909-inspired drum voices, separate 16-step drum and synth sequencers, a playable 16-voice polyphonic wavetable synthesizer, and the FLIP engine.
+The K.O. II-inspired performance face keeps the original Dustbox drum machine, 16-voice wavetable synth, both 16-step sequencers and FLIP engine. Twelve velocity pads, a smoked LCD, A–D source pattern banks and an assignable fader stay visible while DRUMS, SOUND, PATTERN and FX / FLIP select the editor below.
 
-[Play the hosted app](https://beat-flip-web.tj25h4ksw8.chatgpt.site) (owner access follows the Site sharing settings).
+- DRUMS pads 1–8 play the original voices; pads 9–12 play softer kick, snare, clap and closed-hat variants. CHROMATIC KEYS plays C3–B3. Click higher on a pad for higher velocity; keys sustain until release. Number keys 1–9, 0, minus and equals play the pads. The existing A/W/S/E… piano keyboard remains available in SOUND.
+- A–D each remember 99 independent **source pattern slots**, storing the drum grid, synth notes/chords, velocity/gate and sequence enable. These banks are alternate arrangements of the existing engines, not four simultaneous audio buses. Sound settings and FLIP remain global. Pattern changes during playback land on the next rendered bar. Web banks remain session-local.
+- The master fader controls Dust, synth Pitch, Filter, Synth Level, FLIP Mix or Wave Morph. Changes update the existing controls; the target remains pinned during a pointer gesture.
+- All previous grooves, mutes, levels, Dust, swing, synth banks/ADSR, on-screen keys, MIDI input, FLIP palette, KEEP and auto variations remain available. Live synth notes still bypass FLIP and respond immediately, including at 100% wet.
 
-## Run locally
+Run `node verify.mjs` from this directory for offline engine and pattern bank tests. `browser-check.mjs` uses Playwright for actual audio, note release, transport, bank recall, fader and desktop/mobile checks; GitHub Actions runs it and attaches screenshots.
 
-From the repository root:
-
-```sh
-python3 -m http.server 8080 --directory web
-```
-
-Open http://localhost:8080 in a modern browser. Serve the folder over HTTP; opening index.html directly as a file will not load the JavaScript modules reliably. No npm install or build step is required.
-
-## Make a beat
-
-1. Press PLAY to enable audio, or click a voice pad to audition it.
-2. Click a step to cycle through off, hit, and accent. Arrow keys move between steps. Each voice has mute and level controls.
-3. Start with Dusty Pocket, Warehouse 909, Broken Circuit, or a blank pattern. Set tempo, groove swing, and Dust for saturation, filtering, and reduced bit depth.
-4. Play the two-octave synth keyboard, use **A W S E D F T G Y H U J K**, or enable Web MIDI. Choose Classic, Warm, or Spectral and shape Wave Position, Level, Tune, Cutoff, and ADSR.
-5. Select a synth step and set a note or REST, Single/Major/Minor/Sus2/Octave, velocity, and gate. Try Bassline or Chord stabs, then enable SEQUENCE ON. The synth and drum patterns share transport and groove swing.
-6. Press FLIP to process the full programmed bar into stutters, reverse slices, shuffled slices, gates, and half-speed fragments. Programmed synth notes enter the bar before FLIP. Live keys remain immediately audible throughout playback, independent of FLIP; they are never held until a bar boundary.
-7. Use Amount, Mix, effect toggles, repeat speed/swing, and Protect Downbeat to shape the variation. Original/Flipped compares the two. Pattern edits take effect at bar boundaries; live keys do not wait.
-8. Auto Flip generates repeatable variations every 1/2/4/8 bars. KEEP THIS FLIP holds the audible seed and turns Auto Flip off. PANIC immediately clears live notes and stops the synth sequence.
-
-Patterns and kept flips last for the current session; refreshing restores the starting groove. Playback pauses when the tab is hidden. Browser playback requires a user gesture. This version does not import the AU's project state, record external audio, or export MIDI/WAV. Its JavaScript engine recreates the same categories of effects using the programmed drum bar; it is not a bit-for-bit port of the JUCE engine. The voices are synthesized, not Roland sample recordings.
-
-## Validate
-
-```sh
-cd web
-node --check app.mjs
-node --check engine.mjs
-node --check synth-sequence.mjs
-node verify.mjs
-```
-
-Nine checks cover drum voices, grooves/accents/mutes, deterministic flips and source preservation, transparent bypass, all effects and swung subdivisions, tempo/sample-rate boundaries, wavetable banks/polyphony/pre-FLIP routing, multi-note synth sequencing, gate/rest/swing timing, and static assets. Live keyboard response during playback, visual layout, Web MIDI, and the optional WebMCP integration require an actual-browser check.
-
-With Playwright and Chromium installed, run `node browser-check.mjs` for desktop/mobile Web Audio regression checks. These verify three live notes and note-offs within one bar at 100% FLIP, live monitoring after STOP, PANIC, programmed chord playback, sequence editing and overflow. Set `DUSTBOX_PLAYWRIGHT_MODULE` and `DUSTBOX_BROWSER_BIN` when using externally installed runtimes; optional `DUSTBOX_SCREENSHOT_DIR` saves the tested layouts. Web MIDI still needs a connected-device check.
-
-## Files
-
-- `index.html`: instrument interface and metadata.
-- `styles.css`: responsive drum-machine styling. Fonts have local fallbacks.
-- `engine.mjs`: synthesized drum/wavetable voices, bar rendering, and seeded flip processing.
-- `app.mjs`: sequencer and synth controls, Web Audio scheduling, MIDI, audition, waveform, and optional WebMCP tools.
-- `synth-sequence.mjs`: note/chord patterns, presets and timing shared by the controls and renderer.
-- `verify.mjs`: dependency-free audio-engine and static-entrypoint checks.
-- `browser-check.mjs`: optional actual-browser playback and layout regression checks.
+This release implements the performance interface and source pattern workflow. Sample import/chopping, 46.875 kHz converter modes, 32 mono/16 stereo sample voices, per-group multi-outs, motion recording, full punch-in FX, pattern chains, stem drag export and controller templates remain the separate sampler-engine roadmap. No controls for those unfinished capabilities are shown.

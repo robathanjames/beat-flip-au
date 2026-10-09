@@ -5,20 +5,26 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#d9d7cb">
   <meta name="description" content="A lo-fi 909 drum machine, 16-voice wavetable synthesizer, sequencer and tempo-synced beat-flip engine.">
-  <title>Dustbox · DB-09</title>
+  <title>Dustbox · DB-12</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='3' fill='%23202622'/%3E%3Cpath d='M7 6h9c7 0 10 4 10 10s-3 10-10 10H7zm6 5v10h3c3 0 4-2 4-5s-1-5-4-5z' fill='%23ed8a3c'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main class="machine">
+  <main class="machine ko2-machine">
     <header class="masthead">
-      <div class="brand"><h1>dustbox<span>RHYTHM COMPOSER</span></h1></div>
-      <div class="mast-note"><strong>DB-09</strong><span>RHYTHM + WAVETABLE WORKSTATION</span></div>
+      <div class="brand"><h1>dustbox<span>RHYTHM / WAVE / FLIP</span></h1></div>
+      <div class="mast-note"><strong>DB-12</strong><span>PERFORMANCE WORKSTATION</span></div>
       <div class="power"><span id="power-led" aria-hidden="true"></span><span id="power-label">AUDIO STANDBY</span></div>
     </header>
+<section class="performance-face" aria-label="Dustbox performance controls">
+<div class="lcd"><div class="lcd-readout"><div><span>GROUP / PATTERN</span><strong id="lcd-pattern">A.01</strong></div><div><span>TEMPO</span><strong id="lcd-tempo">96.0<small>BPM</small></strong></div><div><span>PAD / SOUND</span><strong id="lcd-pad">KICK</strong></div></div><div class="lcd-bottom"><span id="lcd-status">STOP · LIVE PADS READY</span><span id="lcd-fader">FADER / DUST 34%</span></div><canvas id="waveform" width="1400" height="90" aria-label="Waveform of the output bar" role="img"></canvas></div>
+<div class="performance-controls"><div class="function-column"><div class="bank-label">PATTERN GROUP</div><div class="groups" role="group" aria-label="Pattern group"><button data-group="0" aria-pressed="true">A</button><button data-group="1" aria-pressed="false">B</button><button data-group="2" aria-pressed="false">C</button><button data-group="3" aria-pressed="false">D</button></div><label class="pattern-picker">PATTERN<select id="performance-pattern" aria-label="Pattern number"></select></label><div class="performance-play"><div class="play-group"><button id="play" class="play" aria-label="Play beat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 12 7-12 7z" fill="currentColor"/></svg><span>PLAY</span></button><button id="stop" class="stop" aria-label="Stop beat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h12v12H6z" fill="currentColor"/></svg></button><span class="shortcut">SPACE</span></div></div><div class="performance-actions"><button id="flip" class="flip-button">FLIP</button><button id="keep" class="keep-button">KEEP THIS FLIP</button></div><p class="performance-help">Your source patterns stay intact.<br>FLIP makes the variation.</p></div>
+<div class="master-strip"><label for="master-assignment">FADER ASSIGN</label><select id="master-assignment"><option value="dust">Dust</option><option value="synth-tune">Pitch</option><option value="synth-cutoff">Filter</option><option value="synth-level">Synth level</option><option value="mix">FLIP mix</option><option value="wave-position">Wave morph</option></select><div class="fader-rail"><input id="master-fader" type="range" min="0" max="100" value="34" aria-label="Master performance fader"></div><output id="master-value" for="master-fader">34%</output></div>
+<div class="pad-zone"><div class="pad-heading"><span>VELOCITY PADS</span><label class="sr-only" for="pad-bank">Pad sound bank</label><select id="pad-bank"><option value="drums">Drums</option><option value="keys">Chromatic keys</option></select></div><div id="performance-pads" class="performance-pads" role="group" aria-label="Twelve performance pads"></div><div class="pad-foot">TOP: LOUD / BOTTOM: SOFT <span>KEYS: 1–9, 0, −, =</span></div></div></div>
+</section><nav class="workspace-tabs" aria-label="Instrument workspace"><button data-view="drums" aria-pressed="true">DRUMS</button><button data-view="sound" aria-pressed="false">SOUND</button><button data-view="pattern" aria-pressed="false">PATTERN</button><button data-view="fx" aria-pressed="false">FX / FLIP</button></nav>
 
-    <section class="transport" aria-label="Transport and sound controls">
-      <div class="play-group"><button id="play" class="play" aria-label="Play beat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 12 7-12 7z" fill="currentColor"/></svg><span>PLAY</span></button><button id="stop" class="stop" aria-label="Stop beat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h12v12H6z" fill="currentColor"/></svg></button><span class="shortcut">SPACE</span></div>
+    <section class="transport sound-strip" aria-label="Transport and sound controls">
+
       <div class="tempo-control"><label for="tempo">TEMPO</label><div><input id="tempo" type="number" min="60" max="180" value="96" inputmode="numeric"><span>BPM</span></div></div>
       <div class="fader"><label for="swing">GROOVE SWING <output id="swing-value" for="swing">18%</output></label><input id="swing" type="range" min="0" max="60" value="18"></div>
       <div class="fader"><label for="dust">DUST <output id="dust-value" for="dust">34%</output></label><input id="dust" type="range" min="0" max="100" value="34" aria-describedby="dust-help"><span id="dust-help" class="sr-only">Adds warmer filtering, saturation, and reduced bit depth.</span></div>
@@ -26,7 +32,7 @@
       <div class="bar-counter"><span>BAR / STEP</span><strong id="position">01 <small>/</small> 01</strong></div>
     </section>
 
-    <section class="synth-panel" aria-labelledby="synth-title">
+    <section class="synth-panel workspace-panel" data-workspace="sound" hidden aria-labelledby="synth-title">
       <div class="section-top"><div class="section-name"><h2 id="synth-title">POLY WAVETABLE</h2><span class="badge">16 VOICES / 4 FRAMES</span></div><div class="synth-actions"><button id="synth-power" aria-pressed="true"><i></i>SYNTH ON</button><button id="midi" class="quiet">MIDI</button><button id="panic" class="quiet">PANIC</button></div></div>
       <div class="synth-face">
         <div class="synth-controls">
@@ -41,36 +47,37 @@
           <div class="fader"><label for="synth-release">RELEASE <output id="synth-release-value" for="synth-release">450ms</output></label><input id="synth-release" type="range" min="5" max="3000" value="450"></div>
         </div>
         <div class="synth-display"><span>BANK / FRAME</span><strong id="synth-display">CLASSIC · 1→2</strong><small id="voice-count">0 / 16 VOICES</small></div>
-        <div class="synth-sequence" aria-label="Synth note sequencer">
-          <div class="section-top"><div class="section-name"><h3>SYNTH SEQUENCER</h3><span class="badge">16 STEPS / NOTE + CHORD</span></div><div class="pattern-actions"><label class="seq-enable"><input id="synth-seq-play" type="checkbox">SEQUENCE ON</label><label class="sr-only" for="synth-seq-preset">Synth pattern</label><select id="synth-seq-preset"><option value="blank">Blank</option><option value="bass">Bassline</option><option value="chords">Chord stabs</option><option value="custom" disabled>Custom</option></select><button id="synth-seq-clear" class="quiet">CLEAR</button></div></div>
-          <div class="synth-step-scroll"><div id="synth-steps" class="synth-steps" role="group" aria-label="Select a synth step to edit"></div></div>
-          <div class="synth-step-editor"><strong id="seq-selected">STEP 01</strong><label>NOTE<select id="seq-note"></select></label><label>CHORD<select id="seq-chord"></select></label><label for="seq-velocity">VELOCITY <output id="seq-velocity-value">80%</output><input id="seq-velocity" type="range" min="1" max="100" value="80"></label><label for="seq-gate">GATE <output id="seq-gate-value">65%</output><input id="seq-gate" type="range" min="10" max="100" value="65"></label></div>
-          <p class="seq-help">Select a step, then choose a note or REST. The pattern follows PLAY and groove swing; FLIP processes drums and synth together.</p>
-        </div>
+
         <div id="keyboard" class="keyboard" aria-label="Two octave synthesizer keyboard"></div>
         <div class="keyboard-note"><span>PLAY: A W S E D F T G Y H U J K</span><span>LIVE KEYS PLAY IMMEDIATELY / PATTERNS GO THROUGH FLIP</span></div>
       </div>
     </section>
 
-    <section class="sequencer" aria-labelledby="sequencer-title">
+    <section class="sequencer workspace-panel" data-workspace="drums" aria-labelledby="sequencer-title">
       <div class="section-top"><div class="section-name"><h2 id="sequencer-title">SEQUENCER</h2><span class="badge">16 STEPS</span></div><div class="pattern-actions"><label class="sr-only" for="groove">Starting groove</label><select id="groove"><option value="pocket">Dusty pocket</option><option value="warehouse">Warehouse 909</option><option value="broken">Broken circuit</option><option value="blank">Blank pattern</option><option value="custom" disabled>Custom pattern</option></select><button id="clear" class="quiet">CLEAR</button></div></div>
       <div class="seq-scroll"><div class="seq-inner"><div class="step-header"><span>VOICE / AUDITION</span><div id="step-numbers" class="step-numbers"></div><span class="level-title">LEVEL</span></div><div id="tracks"></div></div></div>
       <div class="seq-footer"><div class="legend"><span><i class="legend-off"></i>OFF</span><span><i class="legend-hit"></i>HIT</span><span><i class="legend-accent"></i>ACCENT</span></div><span>Click a step: hit, accent, off. <span class="desktop-help">Arrow keys move between steps.</span></span><span id="sequence-status">SOURCE PATTERN</span></div>
     </section>
 
-    <section class="flip-panel" aria-labelledby="flip-title">
+    <section class="flip-panel workspace-panel" data-workspace="fx" hidden aria-labelledby="flip-title">
       <div class="section-top"><div class="section-name"><h2 id="flip-title">FLIP ENGINE</h2></div><div class="listen-mode" role="group" aria-label="Listen mode"><button id="original" aria-pressed="true">ORIGINAL</button><button id="flipped" aria-pressed="false">FLIPPED</button></div></div>
       <div class="flip-body">
-        <div class="flip-action"><button id="flip" class="flip-button">FLIP</button><button id="keep" class="keep-button">KEEP THIS FLIP</button><span id="flip-status" aria-live="polite">Create a variation. Keep a good one.</span></div>
+        <div class="flip-action"><span id="flip-status" aria-live="polite">Create a variation. Keep a good one.</span></div>
         <div class="flip-controls">
           <div class="control-grid"><div class="fader"><label for="amount">AMOUNT <output id="amount-value" for="amount">65%</output></label><input id="amount" type="range" min="0" max="100" value="65"></div><div class="fader"><label for="mix">MIX <output id="mix-value" for="mix">80%</output></label><input id="mix" type="range" min="0" max="100" value="80"></div><div class="fader"><label for="repeatSwing">REPEAT SWING <output id="repeatSwing-value" for="repeatSwing">0%</output></label><input id="repeatSwing" type="range" min="0" max="75" value="0"></div></div>
           <div class="choice-grid"><label>STUTTER / GATE SPEED<select id="speed"><option value="0">Random</option><option value="2">2 per step</option><option value="4">4 per step</option><option value="8">8 per step</option><option value="16">16 per step</option></select></label><label>AUTO FLIP<select id="auto"><option value="0">Off</option><option value="1">Every bar</option><option value="2">Every 2 bars</option><option value="4">Every 4 bars</option><option value="8">Every 8 bars</option></select></label><label class="protect"><input id="protect" type="checkbox" checked>Protect downbeat</label></div>
           <div class="effect-palette"><span>INCLUDE</span><button data-effect="stutter" aria-pressed="true">STUTTER</button><button data-effect="reverse" aria-pressed="true">REVERSE</button><button data-effect="shuffle" aria-pressed="true">SHUFFLE</button><button data-effect="gate" aria-pressed="true">GATE</button><button data-effect="half" aria-pressed="true">HALF SPEED</button></div>
         </div>
       </div>
-      <div class="flip-monitor"><div class="monitor-title"><span id="monitor-label">ORIGINAL BAR</span><span id="seed-label">SEED 0909</span></div><div id="flip-map" class="flip-map" aria-label="Effect for each step"></div><canvas id="waveform" width="1400" height="90" aria-label="Waveform of the output bar" role="img"></canvas></div>
+      <div class="flip-monitor"><div class="monitor-title"><span id="monitor-label">ORIGINAL BAR</span><span id="seed-label">SEED 0909</span></div><div id="flip-map" class="flip-map" aria-label="Effect for each step"></div></div>
     </section>
-    <footer class="machine-footer"><span><b>909-INSPIRED.</b> WAVETABLE-POWERED.</span><span id="audio-message" role="status">Press PLAY or touch a key to turn the sound on.</span><span>DUSTBOX / DB-09</span></footer>
+<div class="synth-sequence workspace-panel" data-workspace="pattern" hidden aria-label="Synth note sequencer">
+          <div class="section-top"><div class="section-name"><h3>SYNTH SEQUENCER</h3><span class="badge">16 STEPS / NOTE + CHORD</span></div><div class="pattern-actions"><label class="seq-enable"><input id="synth-seq-play" type="checkbox">SEQUENCE ON</label><label class="sr-only" for="synth-seq-preset">Synth pattern</label><select id="synth-seq-preset"><option value="blank">Blank</option><option value="bass">Bassline</option><option value="chords">Chord stabs</option><option value="custom" disabled>Custom</option></select><button id="synth-seq-clear" class="quiet">CLEAR</button></div></div>
+          <div class="synth-step-scroll"><div id="synth-steps" class="synth-steps" role="group" aria-label="Select a synth step to edit"></div></div>
+          <div class="synth-step-editor"><strong id="seq-selected">STEP 01</strong><label>NOTE<select id="seq-note"></select></label><label>CHORD<select id="seq-chord"></select></label><label for="seq-velocity">VELOCITY <output id="seq-velocity-value">80%</output><input id="seq-velocity" type="range" min="1" max="100" value="80"></label><label for="seq-gate">GATE <output id="seq-gate-value">65%</output><input id="seq-gate" type="range" min="10" max="100" value="65"></label></div>
+          <p class="seq-help">Select a step, then choose a note or REST. The pattern follows PLAY and groove swing; FLIP processes drums and synth together.</p>
+        </div>
+    <footer class="machine-footer"><span><b>909-INSPIRED.</b> WAVETABLE-POWERED.</span><span id="audio-message" role="status">Press PLAY or touch a key to turn the sound on.</span><span>DUSTBOX / DB-12</span></footer>
   </main>
   <script type="module" src="app.mjs"></script>
 </body>

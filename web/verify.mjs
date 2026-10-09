@@ -82,3 +82,16 @@ test('Static entrypoint has all controls and assets', () => {
 });
 const start=performance.now();for(let i=0;i<5;i++)renderBar(groove('pocket'),settings,909+i,48000);
 console.log(`${groups} checks passed. Mean rendered bar: ${((performance.now()-start)/5).toFixed(1)} ms.`);
+
+// Switching patterns must not alias stored source sequences or overwrite sound design.
+const {PatternBanks,padVelocity}=await import('./performance.mjs');
+const banks=new PatternBanks();
+const bankState={pattern:Array.from({length:8},()=>Array(16).fill(0)),synthPattern:Array.from({length:16},()=>({note:-1,chord:0,velocity:.8,gate:.65})),synthSequenceEnabled:true,volume:.7,synth:{cutoff:7200}};
+bankState.pattern[2][7]=2;bankState.synthPattern[3].note=65;
+banks.select(1,99,bankState);assert.equal(bankState.pattern[2][7],0);assert.equal(bankState.synthPattern[3].note,-1);
+bankState.pattern[2][7]=1;bankState.synthPattern[3].note=72;
+banks.select(0,1,bankState);assert.equal(bankState.pattern[2][7],2);assert.equal(bankState.synthPattern[3].note,65);
+bankState.pattern[2][7]=0;banks.select(1,99,bankState);assert.equal(bankState.pattern[2][7],1);assert.equal(bankState.synthPattern[3].note,72);
+assert.equal(bankState.volume,.7);assert.equal(bankState.synth.cutoff,7200);assert.equal(banks.select(4,100,bankState),false);
+assert.equal(padVelocity(0,70),1);assert.ok(padVelocity(69,70)<.17);assert.equal(padVelocity(-30,70),1);
+console.log('PASS independent A-D / 99 source patterns, preserved sound design and pad velocity bounds');
