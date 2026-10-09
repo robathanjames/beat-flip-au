@@ -50,6 +50,7 @@ export function setupPerformance({state,tracks,noteOn,noteOff,audition,refreshTr
   }
   for(let pad=0;pad<12;pad++) {
     const button=document.createElement('button');button.className='performance-pad';button.innerHTML=`<strong>${String(pad+1).padStart(2,'0')}</strong><span></span><i aria-hidden="true"></i>`;
+    button.addEventListener('click',event=>{if(event.detail===0){press(`assistive${pad}`,pad,.8);setTimeout(()=>release(`assistive${pad}`),100);}});
     button.addEventListener('pointerdown',event=>{
       if(event.button!==0)return;event.preventDefault();button.focus({preventScroll:true});button.setPointerCapture(event.pointerId);
       const rect=button.getBoundingClientRect();press(`pointer${event.pointerId}`,pad,padVelocity(event.clientY-rect.top,rect.height));
