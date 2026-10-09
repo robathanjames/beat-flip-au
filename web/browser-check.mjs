@@ -71,13 +71,15 @@ try {
     assert.ok(await rms()>.003,'Performance keys must sound with transport stopped');
     await page.keyboard.up('Enter'); await page.waitForTimeout(150); assert.ok(await rms()<.0001,'Performance note must release on key-up');
     await page.locator('#pad-bank').selectOption('drums');
+    const rail=await page.locator('.fader-rail').boundingBox();
+    assert.ok(rail.height<=280,'The performance fader must not stretch the instrument vertically');
     const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth+1);
     assert.equal(overflow,false,'The page must not overflow horizontally'); assert.deepEqual(errors,[]);
     const path=process.env.DUSTBOX_SCREENSHOT_DIR;
     if(path) {
       await page.locator('[data-group=\"0\"]').click(); await page.locator('#performance-pattern').selectOption('1');
       await page.locator('#groove').selectOption('pocket');
-      for(const [id,value] of [['synth-attack',30],['synth-release',450],['mix',80]]) {
+      for(const [id,value] of [['synth-attack',30],['synth-release',450],['mix',80],['dust',34]]) {
         await page.locator(`#${id}`).evaluate((input,value)=> { input.value=value; input.dispatchEvent(new Event('input',{bubbles:true})); },value);
       }
       await page.locator('h1').click();
