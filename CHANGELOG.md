@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0 — Performance face
+
+- Rebuild native and web controls around a K.O. II-inspired calculator shell, smoked LCD, twelve velocity pads and assignable vertical fader.
+- Keep all drums, wavetable sound design, independent sequences, MIDI and FLIP capabilities in focused DRUMS / SOUND / PATTERN / FX editors.
+- Add four source pattern banks with 99 slots each; save inactive native patterns with host project state. Preserve original AU identities and parameter IDs.
+- Add real pad velocity, softer drum variants, release-safe synth pads and audition hi-hat choke.
+- Add bank recall tests and CI browser/audio checks; refresh instrument screenshots.
+- Full sample import, converter emulation and multi-output sampler architecture remain future work.
+
+
 ## 0.5.0
 
 - Fix live synth notes waiting for a bar boundary. On-screen/computer keys and instrument MIDI play immediately after FLIP, including at 100% wet; only programmed synth audio is captured and flipped.

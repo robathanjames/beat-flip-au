@@ -2,7 +2,7 @@
 
 A lo-fi drum machine, independent 16-step drum/synth sequencers, 16-voice wavetable synthesizer and beat-flipping effect for **Logic Pro and other macOS Audio Unit hosts**.
 
-![Dustbox DB-09 walnut and charcoal web workstation](docs/screenshots/dustbox-web-desktop.png)
+![Dustbox DB-12 calculator-style performance workstation](docs/screenshots/dustbox-web-desktop.png)
 
 ![Dustbox native synth sequencer and live keyboard](docs/screenshots/dustbox-native-sequencer.png)
 
@@ -10,15 +10,25 @@ A lo-fi drum machine, independent 16-step drum/synth sequencers, 16-voice waveta
 
 Put it on a drum loop or drum bus, let a full bar play, and press **FLIP**. The plugin generates a new tempo-synced pattern of stutters, reverse slices, rearranged hits, rhythmic cuts, and half-speed fragments. Keep a pattern you like, or let Auto Flip generate variations at bar boundaries. Downbeat protection keeps the groove anchored by default.
 
-**Version 0.5.0 adds synth note/chord sequencing and fixes live playback across all products. Version 0.4.0 introduced the 16-voice wavetable instrument; version 0.3.1 introduced the Dustbox name and vintage interface.** The portable DSP engine passes behavioral and sanitizer tests. See the current [validation status](docs/VALIDATION.md) before using it in a production session. There is no finished, signed installer.
+**Version 0.6.0 adds a K.O. II-inspired performance face, twelve velocity pads, A–D source pattern banks (99 slots each), six fader assignments and focused editor views while preserving every Dustbox engine. Version 0.5.0 adds synth note/chord sequencing and fixes live playback across all products. Version 0.4.0 introduced the 16-voice wavetable instrument; version 0.3.1 introduced the Dustbox name and vintage interface.** The portable DSP engine passes behavioral and sanitizer tests. See the current [validation status](docs/VALIDATION.md) before using it in a production session. There is no finished, signed installer.
 
 ## Web workstation
 
-The hosted [Dustbox DB-09 web app](https://beat-flip-web.tj25h4ksw8.chatgpt.site) combines the lo-fi 909 drum machine, drum sequencer, FLIP engine, and playable 16-voice wavetable synth with its own 16-step note/chord sequencer. It mirrors the native synth's Classic, Warm, and Spectral banks, four-frame Wave Position morphing, Level, ±24-semitone Tune, low-pass Cutoff, ADSR, panic, on-screen keyboard, computer keys, and optional Web MIDI. Live keys respond immediately throughout playback; programmed synth notes mix with the drums before FLIP.
+The hosted [Dustbox DB-12 web app](https://beat-flip-web.tj25h4ksw8.chatgpt.site) combines the lo-fi 909 drum machine, drum sequencer, FLIP engine, and playable 16-voice wavetable synth with its own 16-step note/chord sequencer. It mirrors the native synth's Classic, Warm, and Spectral banks, four-frame Wave Position morphing, Level, ±24-semitone Tune, low-pass Cutoff, ADSR, panic, on-screen keyboard, computer keys, and optional Web MIDI. Live keys respond immediately throughout playback; programmed synth notes mix with the drums before FLIP.
 
-The refreshed interface uses walnut side panels, charcoal instrument faces, aluminium-centered knobs, orange/blue rocker-style controls, and shaded piano keys. [Desktop, mobile, and native screenshots](docs/screenshots/README.md).
+The performance face uses an off-white calculator-style shell, mechanical keycaps, smoked amber LCD, A–D pattern keys and a vertical assignable fader. DRUMS, SOUND, PATTERN and FX / FLIP expose focused editors without hiding the performance controls. [Desktop, mobile, and native screenshots](docs/screenshots/README.md).
 
 The AU identity, bundle ID and automation parameter IDs retain the original Beat Flip identifiers, so saved projects still recall the same plugin. When upgrading, move the old `Beat Flip.component` out of the Components folder before installing `Dustbox.component` to avoid duplicate AU registrations.
+
+## Performance workflow — version 0.6.0
+
+Twelve pads switch between **DRUMS** (the original eight voices plus four softer variants) and **CHROMATIC KEYS** (C3–B3). Press near the top for stronger velocity or near the bottom for a softer hit. Synth pads sustain until release and stay responsive with transport stopped or running. Pad LEDs show held notes and drum hits. The original piano keyboard is in SOUND.
+
+**A–D each hold 99 source pattern slots.** Switching slots preserves the current drum grid and synth note/chord sequence, including velocity, gate and sequence enable. New slots start blank. These are alternate patterns for the existing shared engines, not four simultaneous mixers or DAW outputs. Native project state saves both active and inactive slots and selected bank; older projects open in A.01 with their existing sequences. Web banks remain session-local. Web switches land at the next rendered bar; native source edits apply at the next audio block and FLIP still reads captured history.
+
+The master fader assigns to **Pitch, Filter, Synth Level, Dust, FLIP Mix or Wave Morph**, using the existing parameters and native host automation. The destination stays fixed for each gesture. Existing synth ADSR, drum mutes/levels, grooves, MIDI export, FLIP presets/palette, swing, KEEP and live monitoring remain available through the focused views. Native editors now fit 1100 × 880 rather than 1100 × 1380.
+
+This release delivers the cohesive performance UI and pattern workflow. The proposed sample importer/chopper, vintage converter rates, expanded sampler polyphony, multi-output routing, recorded fader motion, punch-in effects, chains, stem export and hardware templates require the next sampler-engine stage; they are not implemented or presented as working features here.
 
 ## Wavetable synth
 
