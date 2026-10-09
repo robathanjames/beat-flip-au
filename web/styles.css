@@ -25,3 +25,5 @@ body{background:#a9ada6;background-image:radial-gradient(#ffffff18 1px,transpare
 /* Give the vertical range a definite track height; percentage sizing can grow a grid row. */
 .master-strip .fader-rail{flex:none;height:244px;min-height:0}.master-strip .fader-rail input{height:244px;min-height:0}
 @media(max-width:620px){.master-strip .fader-rail,.master-strip .fader-rail input{height:205px}}
+.workspace-panel .synth-controls label,.workspace-panel .synth-controls .fader label,.workspace-panel .keyboard-note{color:#4c5447}.workspace-panel .synth-controls .fader output{color:#603b27}
+@media(max-width:620px){.sound-strip .bar-counter{display:block}}
