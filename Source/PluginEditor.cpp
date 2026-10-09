@@ -11,7 +11,7 @@ const juce::Colour muted { 0xff62665e };
 const juce::Colour coral { 0xffdb703c };
 const juce::Colour mint { 0xff282b28 };
 const juce::Colour amber { 0xffedb577 };
-const juce::Colour blue { 0xff4c7786 };
+const juce::Colour blue { 0xffa4b8af };
 
 juce::Colour effectColour (beatflip::Effect effect)
 {
@@ -27,6 +27,7 @@ BeatFlipLookAndFeel::BeatFlipLookAndFeel()
     setColour (juce::TextButton::buttonColourId, juce::Colour(0xffeceae1));
     setColour (juce::TextButton::textColourOffId, mint);
     setColour (juce::ToggleButton::textColourId, mint);
+    setColour (juce::Label::textColourId, mint);
     setColour (juce::ToggleButton::tickColourId, coral);
     setColour (juce::Slider::thumbColourId, mint);
     setColour (juce::Slider::trackColourId, panel);
@@ -75,6 +76,18 @@ void BeatFlipLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int
     g.setColour (mint);
     g.drawLine (centre.x + std::sin (angle) * (radius * .38f), centre.y - std::cos (angle) * (radius * .38f),
                 centre.x + std::sin (angle) * (radius * .67f), centre.y - std::cos (angle) * (radius * .67f), 3.0f);
+}
+
+void BeatFlipLookAndFeel::drawLinearSlider(juce::Graphics& g,int x,int y,int width,int height,float position,float min,float max,const juce::Slider::SliderStyle style,juce::Slider& slider)
+{
+    if(style!=juce::Slider::LinearVertical) { juce::LookAndFeel_V4::drawLinearSlider(g,x,y,width,height,position,min,max,style,slider); return; }
+    const float centre=static_cast<float>(x)+static_cast<float>(width)*.5f;
+    g.setColour(muted.withAlpha(.45f));
+    for(int tick=0;tick<9;++tick) { const float yy=static_cast<float>(y)+static_cast<float>(height)*static_cast<float>(tick)/8.0f;g.drawLine(centre-24,yy,centre+24,yy,1); }
+    g.setColour(panel);g.fillRoundedRectangle(centre-5,static_cast<float>(y),10,static_cast<float>(height),3);
+    g.setColour(juce::Colour(0xffa0a793));g.fillRoundedRectangle(centre-27,position-8,54,22,2);
+    g.setColour(juce::Colour(0xffefede3));g.fillRoundedRectangle(centre-27,position-11,54,20,2);
+    g.setColour(muted);g.drawLine(centre-21,position-1,centre+21,position-1,2);
 }
 
 void BeatFlipLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& button,
@@ -321,7 +334,7 @@ BeatFlipEditor::BeatFlipEditor (BeatFlipProcessor& owner) : AudioProcessorEditor
         pair.first->setText(pair.second,juce::dontSendNotification); pair.first->setColour(juce::Label::textColourId,muted);
         pair.first->setFont(juce::FontOptions{12.0f,juce::Font::bold});
     }
-    synthSelectedLabel.setColour(juce::Label::textColourId,amber);
+    synthSelectedLabel.setColour(juce::Label::textColourId,coral.darker(.3f));
     for(std::size_t step=0;step<16;++step) {
         auto& cell=synthSequenceGrid[step]; addAndMakeVisible(cell);
         cell.getProperties().set("synthStep",static_cast<int>(step));
@@ -363,6 +376,8 @@ BeatFlipEditor::BeatFlipEditor (BeatFlipProcessor& owner) : AudioProcessorEditor
         faderAttachment=std::make_unique<SliderAttachment>(processor.parameters,ids[juce::jlimit(0,5,faderAssignment.getSelectedId()-1)],masterFader);
     };
     faderAssignment.setSelectedId(4);
+    masterFader.onDragStart=[this]{faderAssignment.setEnabled(false);};
+    masterFader.onDragEnd=[this]{faderAssignment.setEnabled(true);};
     for(int i=0;i<12;++i) {
         auto& pad=performancePads[i]; addAndMakeVisible(pad); pad.getProperties().set("performancePad",i);
         pad.pressed=[this,i](float velocity){
@@ -449,7 +464,7 @@ void BeatFlipEditor::timerCallback()
         cell.setDescription(juce::String(beatflip::drumNames[tr]) + " step " + juce::String(st + 1) + ": " + cell.getButtonText());
         cell.getProperties().set("stepValue", value);
         cell.getProperties().set("activeStep", st == active);
-        cell.setColour(juce::TextButton::buttonColourId,value==2?coral:value==1?blue:juce::Colour { 0xff303435 });
+        cell.setColour(juce::TextButton::buttonColourId,value==2?coral:value==1?blue:juce::Colour { 0xffb9bfad });
         cell.repaint();
     }
     repaint();
@@ -463,7 +478,7 @@ void BeatFlipEditor::refreshSynthSequence()
         auto& cell=synthSequenceGrid[static_cast<std::size_t>(step)];
         const auto name=note<0?juce::String("REST"):juce::MidiMessage::getMidiNoteName(note,true,true,4)+names[juce::jlimit(0,4,chord)];
         cell.setButtonText(name); cell.setDescription("Synth step "+juce::String(step+1)+": "+name);
-        cell.setColour(juce::TextButton::buttonColourId,note<0?juce::Colour{0xff303435}:blue);
+        cell.setColour(juce::TextButton::buttonColourId,note<0?juce::Colour{0xffb9bfad}:blue);
         cell.getProperties().set("selectedStep",step==selectedSynthStep); cell.getProperties().set("activeStep",step==processor.displayedSynthStep.load()); cell.repaint();
     }
     const auto read=[this](const char* field) { return processor.parameters.getRawParameterValue(BeatFlipProcessor::synthStepId(selectedSynthStep,field))->load(); };
