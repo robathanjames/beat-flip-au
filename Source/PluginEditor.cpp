@@ -565,5 +565,5 @@ void BeatFlipEditor::paint(juce::Graphics& g)
     g.setColour(mint); g.setFont(juce::FontOptions{14.0f,juce::Font::bold});
     const char* titles[]{"DRUM GRID","WAVETABLE SOUND","NOTE + CHORD PATTERN","FLIP ENGINE"}; g.drawText(titles[currentView],36,548,220,32,juce::Justification::centredLeft);
     if(currentView==2) { g.setFont(juce::FontOptions{12.0f}); g.drawText("Select a step, then edit note, chord, velocity and gate. Live pads always play immediately.",36,795,1000,24,juce::Justification::centredLeft); }
-    g.setColour(muted); g.setFont(juce::FontOptions{11.0f}); g.drawText("8 DRUMS + 16-VOICE WAVETABLE + 16-STEP SEQUENCERS + FLIP    /    A–D: SOURCE PATTERN BANKS",36,850,1016,18,juce::Justification::centredLeft);
+    g.setColour(muted); g.setFont(juce::FontOptions{11.0f}); g.drawText("8 DRUMS + 16-VOICE WAVETABLE + 16-STEP SEQUENCERS + FLIP    /    A-D: SOURCE PATTERN BANKS",36,850,1016,18,juce::Justification::centredLeft);
 }
