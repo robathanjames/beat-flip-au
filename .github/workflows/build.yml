@@ -56,5 +56,32 @@ jobs:
         if: always()
         with:
           name: Beat-Flip-editor-preview
-          path: build-macos/Beat-Flip-Editor.png
+          path: |
+            build-macos/Beat-Flip-Editor.png
+            build-macos/Dustbox-*.png
+          if-no-files-found: ignore
+
+  web:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check web engine and pattern bank behavior
+        working-directory: web
+        run: node verify.mjs
+      - name: Install browser test dependencies
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Test live audio, performance pads, banks and responsive layout
+        run: |
+          mkdir -p build-web-preview
+          DUSTBOX_SCREENSHOT_DIR="$PWD/build-web-preview" node web/browser-check.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Dustbox-web-performance-preview
+          path: build-web-preview/*.png
           if-no-files-found: ignore

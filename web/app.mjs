@@ -1,3 +1,4 @@
+import { setupPerformance } from './performance.mjs';
 import { TRACKS, EFFECTS, EFFECT_LABELS, groove, blankPattern, makeFlip, renderBar, voice, colorAudio, variationSeed } from './engine.mjs';
 import { CHORDS, noteName, synthPattern } from './synth-sequence.mjs';
 
@@ -256,16 +257,16 @@ function sourceFor(data, start, duration) {
   sources.add(source); source.addEventListener('ended', () => { sources.delete(source); source.disconnect(); envelope.disconnect(); });
   source.start(start); return source;
 }
-async function audition(tr) {
+async function audition(tr,velocity=1) {
   try {
     await enableAudio(); output.gain.setTargetAtTime(state.volume, context.currentTime, .01);
     const sample = colorAudio(voice(TRACKS[tr].id, context.sampleRate), state.dust, context.sampleRate);
-    for (let i = 0; i < sample.length; i++) sample[i] *= state.levels[tr];
+    for (let i = 0; i < sample.length; i++) sample[i] *= state.levels[tr]*velocity;
     sourceFor(sample, context.currentTime + .005, sample.length / context.sampleRate);
     flashTrack(tr);
   } catch (error) { announce(error.message || 'Sound could not start. Press PLAY again.'); }
 }
-function flashTrack(tr) { trackElements[tr].pad.classList.add('fired'); setTimeout(() => trackElements[tr].pad.classList.remove('fired'), 85); }
+function flashTrack(tr) { performance?.flash(tr); trackElements[tr].pad.classList.add('fired'); setTimeout(() => trackElements[tr].pad.classList.remove('fired'), 85); }
 function schedule() {
   if (!playing) return;
   if (nextTime < context.currentTime - .05) { nextTime = context.currentTime + .06; sequenceAnchor = scheduledBars; }
@@ -310,11 +311,12 @@ function stop() {
   synthSteps.forEach(b => b.classList.remove('current'));
   $('play').classList.remove('playing'); $('play').querySelector('span').textContent = 'PLAY'; $('play').setAttribute('aria-label', 'Play beat');
   $('position').innerHTML = '01 <small>/</small> 01'; $('sequence-status').textContent = 'SOURCE PATTERN';
-  announce('Stopped. Your pattern is ready.'); preview();
+  announce('Stopped. Your pattern is ready.'); performance?.refresh(); preview();
 }
 function currentEvent() { return context ? events.find(e => e.start <= context.currentTime && e.end > context.currentTime) : null; }
 function tick() {
   if (!playing) return;
+  performance?.refresh();
   const event = currentEvent();
   if (event) {
     if (shownEvent !== event) { shownEvent = event; showMonitor(event.rendered, event.settings.enabled); }
@@ -353,7 +355,7 @@ $('flip').addEventListener('click', flip); $('keep').addEventListener('click', k
 $('original').addEventListener('click', () => setEnabled(false)); $('flipped').addEventListener('click', () => setEnabled(true));
 $('groove').addEventListener('change', () => { state.pattern = groove($('groove').value); refreshTracks(); changed(); });
 $('clear').addEventListener('click', () => { state.pattern = blankPattern(); $('groove').value = 'blank'; refreshTracks(); changed(); announce('Pattern cleared. Click steps to build a beat.'); });
-$('tempo').addEventListener('change', () => { const value = Number($('tempo').value); state.tempo = Math.max(60, Math.min(180, Number.isFinite(value) && value > 0 ? value : 96)); $('tempo').value = state.tempo; changed(); });
+$('tempo').addEventListener('change', () => { const value = Number($('tempo').value); state.tempo = Math.max(60, Math.min(180, Number.isFinite(value) && value > 0 ? value : 96)); $('tempo').value = state.tempo; performance?.refresh(); changed(); });
 for (const id of ['swing', 'dust', 'volume', 'amount', 'mix', 'repeatSwing']) {
   const input = $(id); fillRange(input);
   input.addEventListener('input', () => { state[id] = Number(input.value) / 100; $(id + '-value').textContent = input.value + '%'; fillRange(input); if (id === 'volume') { if (output) output.gain.setTargetAtTime(state.volume, context.currentTime, .012); } else changed(); });
@@ -412,6 +414,8 @@ document.addEventListener('keyup', e => { if (typingKeys.has(e.code)) { e.preven
 document.addEventListener('visibilitychange', () => { if (document.hidden) { panic(); if (playing) { stop(); announce('Playback paused while the tab is hidden. Press PLAY to continue.'); } } });
 window.addEventListener('blur', panic);
 window.addEventListener('pagehide', () => { if (playing) stop(); panic(); });
+let performance=null;
+performance=setupPerformance({state,tracks:TRACKS,noteOn,noteOff,audition,refreshTracks,refreshSynthSequence,changed,announce,isPlaying:()=>playing});
 refreshTracks(); refreshModes(); refreshVoiceDisplay(); refreshSynthSequence(); preview();
 
 // Tools share the same sequencer state and actions as the visible controls.

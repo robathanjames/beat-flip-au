@@ -5,13 +5,13 @@
 
 namespace
 {
-const juce::Colour background { 0xff242424 };
-const juce::Colour panel { 0xff181a1b };
-const juce::Colour muted { 0xffaaa99f };
+const juce::Colour background { 0xffdedcd0 };
+const juce::Colour panel { 0xff242a29 };
+const juce::Colour muted { 0xff62665e };
 const juce::Colour coral { 0xffdb703c };
-const juce::Colour mint { 0xffdcd9ce };
+const juce::Colour mint { 0xff282b28 };
 const juce::Colour amber { 0xffedb577 };
-const juce::Colour blue { 0xff4c7786 };
+const juce::Colour blue { 0xffa4b8af };
 
 juce::Colour effectColour (beatflip::Effect effect)
 {
@@ -24,9 +24,10 @@ BeatFlipLookAndFeel::BeatFlipLookAndFeel()
     setColour (juce::Slider::textBoxTextColourId, amber);
     setColour (juce::Slider::textBoxBackgroundColourId, panel);
     setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
-    setColour (juce::TextButton::buttonColourId, blue);
+    setColour (juce::TextButton::buttonColourId, juce::Colour(0xffeceae1));
     setColour (juce::TextButton::textColourOffId, mint);
     setColour (juce::ToggleButton::textColourId, mint);
+    setColour (juce::Label::textColourId, mint);
     setColour (juce::ToggleButton::tickColourId, coral);
     setColour (juce::Slider::thumbColourId, mint);
     setColour (juce::Slider::trackColourId, panel);
@@ -77,6 +78,18 @@ void BeatFlipLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int
                 centre.x + std::sin (angle) * (radius * .67f), centre.y - std::cos (angle) * (radius * .67f), 3.0f);
 }
 
+void BeatFlipLookAndFeel::drawLinearSlider(juce::Graphics& g,int x,int y,int width,int height,float position,float min,float max,const juce::Slider::SliderStyle style,juce::Slider& slider)
+{
+    if(style!=juce::Slider::LinearVertical) { juce::LookAndFeel_V4::drawLinearSlider(g,x,y,width,height,position,min,max,style,slider); return; }
+    const float centre=static_cast<float>(x)+static_cast<float>(width)*.5f;
+    g.setColour(muted.withAlpha(.45f));
+    for(int tick=0;tick<9;++tick) { const float yy=static_cast<float>(y)+static_cast<float>(height)*static_cast<float>(tick)/8.0f;g.drawLine(centre-24,yy,centre+24,yy,1); }
+    g.setColour(panel);g.fillRoundedRectangle(centre-5,static_cast<float>(y),10,static_cast<float>(height),3);
+    g.setColour(juce::Colour(0xffa0a793));g.fillRoundedRectangle(centre-27,position-8,54,22,2);
+    g.setColour(juce::Colour(0xffefede3));g.fillRoundedRectangle(centre-27,position-11,54,20,2);
+    g.setColour(muted);g.drawLine(centre-21,position-1,centre+21,position-1,2);
+}
+
 void BeatFlipLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& button,
                                                const juce::Colour& colour, bool over, bool down)
 {
@@ -103,6 +116,12 @@ void BeatFlipLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button&
 void BeatFlipLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& button, bool, bool)
 {
     if (button.getProperties().contains ("stepValue")) return;
+    if(button.getProperties().contains("performancePad")) {
+        g.setColour(juce::Colour(0xff292d29)); g.setFont(juce::FontOptions{22.0f,juce::Font::bold});
+        g.drawText(juce::String(static_cast<int>(button.getProperties()["performancePad"])+1).paddedLeft('0',2),12,6,44,26,juce::Justification::centredLeft);
+        g.setFont(juce::FontOptions{11.0f,juce::Font::bold}); g.drawText(button.getButtonText(),12,34,button.getWidth()-24,18,juce::Justification::centredLeft);
+        g.setColour(static_cast<bool>(button.getProperties()["activeStep"])?coral:juce::Colour(0xff96998e)); g.fillEllipse(static_cast<float>(button.getWidth()-23),12.0f,6.0f,6.0f); return;
+    }
     if(button.getProperties().contains("synthStep")) {
         const auto bounds=button.getLocalBounds();
         const auto selected=static_cast<bool>(button.getProperties()["selectedStep"]);
@@ -123,7 +142,7 @@ void BeatFlipLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& b
 BeatFlipEditor::BeatFlipEditor (BeatFlipProcessor& owner) : AudioProcessorEditor (owner), processor (owner)
 {
     setLookAndFeel (&look);
-    setSize (1100, 1380);
+    setSize (1100, 880);
     addAndMakeVisible (flipButton);
     flipButton.setColour (juce::TextButton::buttonColourId, coral);
     addAndMakeVisible (keepButton);
@@ -132,7 +151,7 @@ BeatFlipEditor::BeatFlipEditor (BeatFlipProcessor& owner) : AudioProcessorEditor
     flipButton.setTooltip ("Generate a new pattern. It starts on the next grid step; Glitch switches on automatically.");
     flipButton.onClick = [this] { processor.flip(); };
     enabledButton.setTooltip ("Turn the glitch pattern on or off. The input keeps being captured.");
-    keepButton.setColour (juce::TextButton::buttonColourId, blue);
+    keepButton.setColour (juce::TextButton::buttonColourId, juce::Colour(0xffeceae1));
     keepButton.setTooltip ("Keep the current variation and turn Auto Flip off. The seed is saved with your project.");
     keepButton.onClick = [this] { processor.keepPattern(); };
     protectButton.setTooltip ("Leave the first cell live to anchor the groove. Turn off to allow glitches on the downbeat.");
@@ -315,7 +334,7 @@ BeatFlipEditor::BeatFlipEditor (BeatFlipProcessor& owner) : AudioProcessorEditor
         pair.first->setText(pair.second,juce::dontSendNotification); pair.first->setColour(juce::Label::textColourId,muted);
         pair.first->setFont(juce::FontOptions{12.0f,juce::Font::bold});
     }
-    synthSelectedLabel.setColour(juce::Label::textColourId,amber);
+    synthSelectedLabel.setColour(juce::Label::textColourId,coral.darker(.3f));
     for(std::size_t step=0;step<16;++step) {
         auto& cell=synthSequenceGrid[step]; addAndMakeVisible(cell);
         cell.getProperties().set("synthStep",static_cast<int>(step));
@@ -323,6 +342,59 @@ BeatFlipEditor::BeatFlipEditor (BeatFlipProcessor& owner) : AudioProcessorEditor
         cell.onClick=[this,step] { selectedSynthStep=static_cast<int>(step); refreshSynthSequence(); };
     }
     if(processor.isInstrument()) source.setTooltip("Choose silence or the drum machine as the synth's backing source. This instrument has no audio input.");
+    // The performance face stays visible while the editor below changes view.
+    drumView={&grooves,&exportMidiButton,&dust,&dustLabel,&grooveSwing,&grooveSwingLabel};
+    for(int tr=0;tr<8;++tr) { drumView.push_back(&drumPads[tr]); drumView.push_back(&drumMutes[tr]); drumView.push_back(&drumLevels[tr]); for(auto& cell:drumGrid[tr]) drumView.push_back(&cell); }
+    soundView={&synthBank,&synthStatus,&synthPanic,&synthKeyboard};
+    for(std::size_t i=0;i<synthControls.size();++i) { soundView.push_back(&synthControls[i]); soundView.push_back(&synthLabels[i]); }
+    sequenceView={&synthSequencePlay,&synthSequencePreset,&synthSequenceClear,&synthStepNote,&synthStepChord,&synthStepVelocity,&synthStepGate,&synthSelectedLabel,&synthNoteLabel,&synthChordLabel,&synthVelocityLabel,&synthGateLabel};
+    for(auto& cell:synthSequenceGrid) sequenceView.push_back(&cell);
+    fxView={&mix,&mixLabel,&swing,&swingLabel,&repeats,&repeatsLabel,&autoFlip,&autoFlipLabel,&protectButton};
+    for(auto& button:effectButtons) fxView.push_back(&button);
+    heldPadNotes.fill(-1);
+    const char* views[]{"DRUMS","SOUND","PATTERN","FX / FLIP"};
+    for(int i=0;i<4;++i) {
+        auto& button=viewButtons[i]; button.setButtonText(views[i]); addAndMakeVisible(button); button.onClick=[this,i]{setView(i);};
+        auto& group=groupButtons[i]; group.setButtonText(juce::String::charToString(static_cast<juce::juce_wchar>('A'+i))); addAndMakeVisible(group);
+        group.setTooltip("Recall this group's source pattern. Other groups remain intact.");
+        group.onClick=[this,i]{processor.selectPerformancePattern(i,patternNumber.getSelectedId());timerCallback();};
+    }
+    for(auto* control:std::initializer_list<juce::Component*>{&padBank,&patternNumber,&faderAssignment,&masterFader,&faderValue}) addAndMakeVisible(control);
+    padBank.addItemList({"DRUM PADS","CHROMATIC KEYS"},1); padBank.setSelectedId(1);
+    padBank.onChange=[this]{for(auto& note:heldPadNotes) { if(note>=0) processor.queueSynthNote(note,false); note=-1; } updatePerformancePads();};
+    for(int i=1;i<=99;++i) patternNumber.addItem("PATTERN "+juce::String(i).paddedLeft('0',2),i);
+    patternNumber.setSelectedId(processor.performancePattern(),juce::dontSendNotification);
+    patternNumber.onChange=[this]{processor.selectPerformancePattern(processor.performanceGroup(),patternNumber.getSelectedId());timerCallback();};
+    padBank.setName("Pad sound bank"); patternNumber.setName("Pattern number"); faderAssignment.setName("Fader assignment"); masterFader.setName("Master performance fader");
+    masterFader.setSliderStyle(juce::Slider::LinearVertical); masterFader.setTextBoxStyle(juce::Slider::NoTextBox,false,0,0);
+    masterFader.setColour(juce::Slider::trackColourId,coral); faderValue.setColour(juce::Label::textColourId,mint); faderValue.setJustificationType(juce::Justification::centred);
+    faderAssignment.addItemList({"PITCH","FILTER","SYNTH LEVEL","DUST","FLIP MIX","WAVE MORPH"},1);
+    faderAssignment.onChange=[this]{
+        // End the old gesture before rebinding. Attachments preserve host automation.
+        faderAttachment.reset();
+        const char* ids[]{"synthTune","synthCutoff","synthLevel","dust","mix","synthPosition"};
+        faderAttachment=std::make_unique<SliderAttachment>(processor.parameters,ids[juce::jlimit(0,5,faderAssignment.getSelectedId()-1)],masterFader);
+    };
+    faderAssignment.setSelectedId(4);
+    masterFader.onDragStart=[this]{faderAssignment.setEnabled(false);};
+    masterFader.onDragEnd=[this]{faderAssignment.setEnabled(true);};
+    for(int i=0;i<12;++i) {
+        auto& pad=performancePads[i]; addAndMakeVisible(pad); pad.getProperties().set("performancePad",i);
+        pad.pressed=[this,i](float velocity){
+            padFlashUntil[i]=juce::Time::getMillisecondCounter()+120;
+            if(padBank.getSelectedId()==1) {
+                if(auto* parameter=processor.parameters.getParameter("source")) parameter->setValueNotifyingHost(1);
+                processor.auditionDrum(i<8?i:i-8,velocity*(i<8?1.0f:.55f));
+            } else {
+                if(auto* parameter=processor.parameters.getParameter("synthEnabled")) parameter->setValueNotifyingHost(1);
+                heldPadNotes[i]=48+i; processor.queueSynthNote(48+i,true,velocity);
+            }
+        };
+        pad.released=[this,i]{if(heldPadNotes[i]>=0) processor.queueSynthNote(heldPadNotes[i],false);heldPadNotes[i]=-1;};
+        pad.onClick=[this,i]{if(!performancePads[i].isMouseOver()) {performancePads[i].pressed(.8f);
+            juce::Timer::callAfterDelay(100,[safe=juce::Component::SafePointer<BeatFlipEditor>(this),i]{if(safe!=nullptr) safe->performancePads[i].released();});}};
+    }
+    updatePerformancePads(); setView(0);
     timerCallback();
     startTimerHz (30);
 }
@@ -330,6 +402,7 @@ BeatFlipEditor::BeatFlipEditor (BeatFlipProcessor& owner) : AudioProcessorEditor
 BeatFlipEditor::~BeatFlipEditor()
 {
     synthKeyboard.releaseAll();
+    for(auto note:heldPadNotes) if(note>=0) processor.queueSynthNote(note,false);
     synthKeyboard.noteChanged=nullptr;
     stopTimer();
     setLookAndFeel (nullptr);
@@ -372,6 +445,16 @@ void BeatFlipEditor::exportMidi()
 void BeatFlipEditor::timerCallback()
 {
     refreshSynthSequence();
+    patternNumber.setSelectedId(processor.performancePattern(),juce::dontSendNotification);
+    for(int i=0;i<4;++i) groupButtons[i].setColour(juce::TextButton::buttonColourId,i==processor.performanceGroup()?coral:juce::Colour(0xffeceae1));
+    faderValue.setText(juce::String(masterFader.getValue(),faderAssignment.getSelectedId()==1?1:0),juce::dontSendNotification);
+    for(int i=0;i<12;++i) {
+        const int drumStep=processor.displayedDrumStep.load();
+        const bool sequenceHit=padBank.getSelectedId()==1 && drumStep>=0 && processor.parameters.getRawParameterValue(BeatFlipProcessor::drumStepId(i<8?i:i-8,drumStep))->load()>0;
+        const bool lit=sequenceHit || heldPadNotes[i]>=0 || static_cast<juce::int32>(padFlashUntil[i]-juce::Time::getMillisecondCounter())>0;
+        performancePads[i].getProperties().set("activeStep",lit);
+        performancePads[i].repaint();
+    }
     synthStatus.setText(juce::String(processor.displayedVoices.load())+" / 16 VOICES",juce::dontSendNotification);
     const int active=processor.displayedDrumStep.load();
     for(int tr=0;tr<8;++tr) for(int st=0;st<16;++st) {
@@ -381,7 +464,7 @@ void BeatFlipEditor::timerCallback()
         cell.setDescription(juce::String(beatflip::drumNames[tr]) + " step " + juce::String(st + 1) + ": " + cell.getButtonText());
         cell.getProperties().set("stepValue", value);
         cell.getProperties().set("activeStep", st == active);
-        cell.setColour(juce::TextButton::buttonColourId,value==2?coral:value==1?blue:juce::Colour { 0xff303435 });
+        cell.setColour(juce::TextButton::buttonColourId,value==2?coral:value==1?blue:juce::Colour { 0xffb9bfad });
         cell.repaint();
     }
     repaint();
@@ -395,7 +478,7 @@ void BeatFlipEditor::refreshSynthSequence()
         auto& cell=synthSequenceGrid[static_cast<std::size_t>(step)];
         const auto name=note<0?juce::String("REST"):juce::MidiMessage::getMidiNoteName(note,true,true,4)+names[juce::jlimit(0,4,chord)];
         cell.setButtonText(name); cell.setDescription("Synth step "+juce::String(step+1)+": "+name);
-        cell.setColour(juce::TextButton::buttonColourId,note<0?juce::Colour{0xff303435}:blue);
+        cell.setColour(juce::TextButton::buttonColourId,note<0?juce::Colour{0xffb9bfad}:blue);
         cell.getProperties().set("selectedStep",step==selectedSynthStep); cell.getProperties().set("activeStep",step==processor.displayedSynthStep.load()); cell.repaint();
     }
     const auto read=[this](const char* field) { return processor.parameters.getRawParameterValue(BeatFlipProcessor::synthStepId(selectedSynthStep,field))->load(); };
@@ -405,110 +488,82 @@ void BeatFlipEditor::refreshSynthSequence()
     if(!synthStepVelocity.isMouseButtonDown()) synthStepVelocity.setValue(read("Velocity"),juce::dontSendNotification);
     if(!synthStepGate.isMouseButtonDown()) synthStepGate.setValue(read("Gate"),juce::dontSendNotification);
 }
+void BeatFlipEditor::setView(int view)
+{
+    currentView=juce::jlimit(0,3,view);
+    const std::array<std::vector<juce::Component*>*,4> lists{&drumView,&soundView,&sequenceView,&fxView};
+    for(int i=0;i<4;++i) { for(auto* component:*lists[i]) component->setVisible(i==currentView); viewButtons[i].setColour(juce::TextButton::buttonColourId,i==currentView?coral:juce::Colour(0xffeceae1)); }
+    resized(); repaint();
+}
+void BeatFlipEditor::updatePerformancePads()
+{
+    for(int i=0;i<12;++i) {
+        auto& pad=performancePads[i];
+        pad.setButtonText(padBank.getSelectedId()==1 ? juce::String(beatflip::drumNames[i<8?i:i-8])+(i>=8?" SOFT":"") : juce::MidiMessage::getMidiNoteName(48+i,true,true,4));
+        pad.setTitle("Performance pad "+juce::String(i+1)+": "+pad.getButtonText());
+        pad.setTooltip("Press near the top for louder velocity; near the bottom for softer. Keys sustain until release.");
+        pad.setColour(juce::TextButton::buttonColourId,i==11?coral:juce::Colour(0xffeceae1));
+    }
+}
 void BeatFlipEditor::resized()
 {
-    synthOn.setBounds(300,944,135,26); synthBank.setBounds(454,942,180,30); synthStatus.setBounds(670,944,170,24); synthPanic.setBounds(948,942,104,30);
-    for(std::size_t i=0;i<synthControls.size();++i) {
-        const int x=36+static_cast<int>(i)*130;
-        synthControls[i].setBounds(x,982,122,108); synthLabels[i].setBounds(x,1093,122,18);
-    }
-    synthSequencePlay.setBounds(268,1124,142,30); synthSequencePreset.setBounds(620,1124,260,30); synthSequenceClear.setBounds(948,1124,104,30);
-    for(int step=0;step<16;++step) synthSequenceGrid[static_cast<std::size_t>(step)].setBounds(36+step*64,1163,58,51);
-    synthSelectedLabel.setBounds(36,1238,95,28);
-    synthNoteLabel.setBounds(146,1222,155,18); synthStepNote.setBounds(146,1243,155,30);
-    synthChordLabel.setBounds(323,1222,155,18); synthStepChord.setBounds(323,1243,155,30);
-    synthVelocityLabel.setBounds(509,1222,235,18); synthStepVelocity.setBounds(509,1243,235,30);
-    synthGateLabel.setBounds(785,1222,264,18); synthStepGate.setBounds(785,1243,264,30);
-    synthKeyboard.setBounds(36,1288,1016,64);
-    presets.setBounds(450,34,230,32); enabledButton.setBounds(696,37,124,26);
-    source.setBounds(44,120,174,34); drumPlay.setBounds(236,120,140,34); grooves.setBounds(398,120,212,34);
-    exportMidiButton.setBounds(634,120,130,34);
-    dust.setBounds(784,100,110,80); dustLabel.setBounds(784,181,110,18);
-    grooveSwing.setBounds(922,100,138,80); grooveSwingLabel.setBounds(922,181,138,18);
+    presets.setBounds(674,24,210,30);
+    for(int i=0;i<4;++i) { viewButtons[i].setBounds(36+i*143,203,132,34); groupButtons[i].setBounds(36+i*54,263,46,34); }
+    patternNumber.setBounds(272,263,172,34); padBank.setBounds(620,203,432,34);
+    source.setBounds(36,310,160,32); drumPlay.setBounds(216,310,146,32);
+    flipButton.setBounds(36,361,160,76); keepButton.setBounds(36,451,160,32);
+    enabledButton.setBounds(216,450,114,28); synthOn.setBounds(338,450,114,28);
+    amount.setBounds(216,350,110,78); amountLabel.setBounds(216,429,110,18);
+    tempo.setBounds(344,350,110,78); tempoLabel.setBounds(344,429,110,18);
+    output.setSliderStyle(juce::Slider::LinearHorizontal); output.setTextBoxStyle(juce::Slider::TextBoxRight,false,50,22);
+    output.setBounds(344,477,110,30); outputLabel.setBounds(216,483,110,18);
+    faderAssignment.setBounds(466,250,136,32); masterFader.setBounds(498,291,76,188); faderValue.setBounds(466,480,136,26);
+    for(int i=0;i<12;++i) performancePads[i].setBounds(620+(i%3)*146,250+(i/3)*65,140,59);
+    grooves.setBounds(170,550,190,30); exportMidiButton.setBounds(374,550,128,30);
+    dust.setSliderStyle(juce::Slider::LinearHorizontal); dust.setTextBoxStyle(juce::Slider::TextBoxRight,false,54,24);
+    grooveSwing.setSliderStyle(juce::Slider::LinearHorizontal); grooveSwing.setTextBoxStyle(juce::Slider::TextBoxRight,false,54,24);
+    dustLabel.setBounds(537,545,100,16); dust.setBounds(537,563,227,28); grooveSwingLabel.setBounds(799,545,240,16); grooveSwing.setBounds(799,563,240,28);
     for(int tr=0;tr<8;++tr) {
-        const int y=232+tr*38;
-        drumPads[tr].setBounds(30,y,116,32); drumMutes[tr].setBounds(152,y,38,32); drumLevels[tr].setBounds(192,y,78,32);
-        for(int st=0;st<16;++st) drumGrid[tr][st].setBounds(286+st*48,y,42,32);
+        const int y=602+tr*28; drumPads[tr].setBounds(36,y,110,24); drumMutes[tr].setBounds(151,y,30,24); drumLevels[tr].setBounds(186,y,80,24);
+        for(int st=0;st<16;++st) drumGrid[tr][st].setBounds(284+st*48,y,42,24);
     }
-    flipButton.setBounds(28,643,210,77); keepButton.setBounds(28,729,210,30);
-    const auto place=[](juce::Slider& slider,juce::Label& label,int x) {slider.setBounds(x,636,144,104);label.setBounds(x,744,144,18);};
-    place(amount,amountLabel,256);place(mix,mixLabel,416);place(output,outputLabel,576);place(tempo,tempoLabel,736);place(swing,swingLabel,896);
-    repeatsLabel.setBounds(44,786,164,18);repeats.setBounds(44,809,164,30);
-    autoFlipLabel.setBounds(230,786,164,18);autoFlip.setBounds(230,809,164,30);protectButton.setBounds(425,810,205,28);
-    for(std::size_t i=0;i<effectButtons.size();++i) effectButtons[i].setBounds(44+static_cast<int>(i)*154,874,148,28);
+    synthBank.setBounds(260,550,180,30); synthStatus.setBounds(470,550,200,30); synthPanic.setBounds(947,550,104,30);
+    for(std::size_t i=0;i<synthControls.size();++i) { const int x=36+static_cast<int>(i)*130; synthControls[i].setBounds(x,603,122,108); synthLabels[i].setBounds(x,714,122,18); }
+    synthKeyboard.setBounds(36,758,1016,76);
+    synthSequencePlay.setBounds(264,550,142,30); synthSequencePreset.setBounds(620,550,260,30); synthSequenceClear.setBounds(948,550,104,30);
+    for(int st=0;st<16;++st) synthSequenceGrid[static_cast<std::size_t>(st)].setBounds(36+st*64,614,58,61);
+    synthSelectedLabel.setBounds(36,719,95,28);
+    synthNoteLabel.setBounds(146,705,155,18); synthStepNote.setBounds(146,728,155,30);
+    synthChordLabel.setBounds(323,705,155,18); synthStepChord.setBounds(323,728,155,30);
+    synthVelocityLabel.setBounds(509,705,235,18); synthStepVelocity.setBounds(509,728,235,30);
+    synthGateLabel.setBounds(785,705,264,18); synthStepGate.setBounds(785,728,264,30);
+    mix.setBounds(36,597,144,104); mixLabel.setBounds(36,705,144,18); swing.setBounds(216,597,144,104); swingLabel.setBounds(216,705,144,18);
+    repeatsLabel.setBounds(420,605,180,18); repeats.setBounds(420,630,180,30); autoFlipLabel.setBounds(646,605,180,18); autoFlip.setBounds(646,630,180,30); protectButton.setBounds(855,630,200,28);
+    for(std::size_t i=0;i<effectButtons.size();++i) effectButtons[i].setBounds(36+static_cast<int>(i)*204,782,194,28);
 }
-
-void BeatFlipEditor::paint (juce::Graphics& g)
+void BeatFlipEditor::paint(juce::Graphics& g)
 {
-    g.fillAll (background);
-    for (int side : {0, 1082}) {
-        g.setGradientFill(juce::ColourGradient(juce::Colour(0xff815336),static_cast<float>(side),0,juce::Colour(0xff412619),static_cast<float>(side+18),0,false));
-        g.fillRect(side,0,18,getHeight());
-        for (int line=2;line<18;line+=3) { g.setColour(juce::Colour(0xff2f1b12).withAlpha(.35f)); g.drawVerticalLine(side+line,0,static_cast<float>(getHeight())); }
-    }
-    g.setColour (mint);
-    g.setFont (juce::FontOptions { 46.0f, juce::Font::bold });
-    g.drawText ("dustbox", 28, 16, 300, 50, juce::Justification::centredLeft);
-    g.setColour (muted);
-    g.setFont (juce::FontOptions { 12.0f, juce::Font::bold });
-    g.drawText ("RHYTHM COMPOSER", 31, 66, 300, 18, juce::Justification::centredLeft);
-    g.setColour (mint);
-    g.setFont (juce::FontOptions { 28.0f, juce::Font::bold });
-    g.drawText ("DB-09", 880, 22, 190, 36, juce::Justification::centredRight);
-    g.setFont (juce::FontOptions { 11.0f });
-    g.drawText ("DRUMS + WAVETABLE + FLIP ENGINE", 840, 62, 230, 18, juce::Justification::centredRight);
-    g.fillRect (28, 90, 1044, 2);
-    g.setColour (panel);
-    g.fillRoundedRectangle (28.0f, 104.0f, 1044.0f, 98.0f, 4.0f);
-    g.setColour (juce::Colour { 0xff202223 });
-    g.fillRoundedRectangle (28.0f, 224.0f, 1044.0f, 318.0f, 4.0f);
-    g.setColour (panel);
-    g.fillRoundedRectangle (28.0f, 554.0f, 1044.0f, 76.0f, 4.0f);
-    g.fillRect (28, 770, 1044, 1);
-    g.setColour (muted);
-    g.setFont (juce::FontOptions { 12.0f, juce::Font::bold });
-    g.drawText ("SEQUENCER", 30, 205, 160, 18, juce::Justification::centredLeft);
-    g.setFont (juce::FontOptions { 11.0f });
-    g.drawText ("CLICK: OFF / HIT / ACCENT", 30, 531, 250, 14, juce::Justification::centredLeft);
-    for(int i=0;i<16;++i) g.drawText(juce::String(i+1),286+i*48,205,42,18,juce::Justification::centred);
-    const auto activeSeed = processor.displayedSeed.load (std::memory_order_relaxed);
-    const auto requestedSeed = static_cast<std::uint32_t> (processor.parameters.getRawParameterValue ("seed")->load());
-    const auto baseSeed = processor.displayedBaseSeed.load (std::memory_order_relaxed);
-    const auto packedPattern = processor.displayedPattern.load (std::memory_order_relaxed);
-    const auto step = processor.displayedStep.load (std::memory_order_relaxed);
-    const auto enabled = enabledButton.getToggleState();
-    const auto playing = processor.displayedPlaying.load (std::memory_order_relaxed);
-    g.setFont (juce::FontOptions { 11.0f, juce::Font::bold });
-    g.setColour (coral);
-    g.drawText ("PATTERN  " + juce::String (activeSeed) + (requestedSeed != baseSeed ? "  /  FLIP QUEUED" : ""),
-                44, 556, 1000, 20, juce::Justification::centredLeft);
-
-    for (int i = 0; i < beatflip::stepCount; ++i)
-    {
-        const auto effect = static_cast<beatflip::Effect> ((packedPattern >> (static_cast<unsigned> (i) * 3u)) & 7u);
-        const auto colour = effectColour (effect);
-        const auto cell = juce::Rectangle<float> (286.0f + i * 48.0f, 576.0f, 42.0f, 34.0f);
-        g.setColour (colour.withAlpha (i == step && playing && enabled ? 0.34f : 0.10f));
-        g.fillRoundedRectangle (cell, 3.0f);
-        g.setColour (colour.withAlpha (enabled ? 1.0f : 0.4f));
-        g.drawRoundedRectangle (cell, 5.0f, i == step && playing && enabled ? 2.0f : 0.6f);
-        g.setFont (juce::FontOptions { 10.0f, juce::Font::bold });
-        g.drawText (beatflip::effectName (effect), cell.toNearestInt(), juce::Justification::centred);
-        g.setColour (mint.withAlpha (.65f));
-        g.setFont (juce::FontOptions { 9.0f });
-        g.drawText (juce::String (i + 1), static_cast<int> (cell.getX()), 611, 42, 17, juce::Justification::centred);
-    }
-
-    g.setColour (muted);
-    g.setFont (juce::FontOptions { 11.0f });
-    g.drawText ("EFFECT PALETTE", 44, 849, 1000, 18, juce::Justification::centredLeft);
-    g.setColour(muted); g.fillRect(28,925,1044,1);
-    g.setFont(juce::FontOptions{14.0f,juce::Font::bold}); g.drawText("POLY WAVETABLE",36,940,240,30,juce::Justification::centredLeft);
-    g.drawText("SYNTH SEQUENCER",36,1124,210,30,juce::Justification::centredLeft);
-    g.setFont(juce::FontOptions{11.0f}); g.drawText("16 STEPS / NOTE + CHORD",420,1124,200,30,juce::Justification::centredLeft);
-    const auto sync = processor.displayedHostSync.load (std::memory_order_relaxed) ? "HOST SYNC" : "FREE RUN";
-    const auto bpm = processor.displayedBpm.load (std::memory_order_relaxed);
-    juce::String status = juce::String (sync) + "  /  " + juce::String (bpm, 1) + " BPM";
-    status += ! playing ? "  /  PRESS PLAY" : processor.displayedCapturing.load() ? "  /  CAPTURING A BAR" : "  /  READY";
-    g.drawText (status+"  /  LIVE KEYS: IMMEDIATE   PATTERNS: THROUGH FLIP", 28, 1358, 1044, 17, juce::Justification::centredLeft);
+    g.fillAll(background);
+    g.setColour(juce::Colour(0xffb0b1a4)); g.drawRect(getLocalBounds().reduced(12),1);
+    for(int x:{24,1076}) for(int y:{24,856}) { g.setColour(juce::Colour(0xff85897f)); g.fillEllipse(static_cast<float>(x-3),static_cast<float>(y-3),6,6); }
+    g.setColour(mint); g.setFont(juce::FontOptions{34.0f,juce::Font::bold}); g.drawText("dustbox",36,20,300,40,juce::Justification::centredLeft);
+    g.setFont(juce::FontOptions{11.0f,juce::Font::bold}); g.drawText("RHYTHM / WAVE / FLIP",264,33,260,20,juce::Justification::centredLeft);
+    g.setFont(juce::FontOptions{24.0f,juce::Font::bold}); g.drawText("DB-12",926,22,126,35,juce::Justification::centredRight);
+    g.setColour(panel); g.fillRoundedRectangle(36,76,1016,110,5); g.setColour(juce::Colour(0xff111817)); g.fillRoundedRectangle(43,83,1002,96,3);
+    const auto lcd=juce::Colour(0xffffad68); g.setColour(lcd); g.setFont(juce::FontOptions{42.0f,juce::Font::bold}.withName(juce::Font::getDefaultMonospacedFontName()));
+    const auto group=juce::String::charToString(static_cast<juce::juce_wchar>('A'+processor.performanceGroup()));
+    g.drawText(group+"."+juce::String(processor.performancePattern()).paddedLeft('0',2),62,93,230,50,juce::Justification::centredLeft);
+    g.drawText(juce::String(processor.displayedBpm.load(),1),310,93,240,50,juce::Justification::centredLeft);
+    g.setFont(juce::FontOptions{12.0f,juce::Font::bold}); g.drawText("PATTERN BANK",62,148,200,20,juce::Justification::centredLeft);
+    g.drawText(processor.displayedHostSync.load()?"BPM / HOST SYNC":"BPM / FREE RUN",310,148,240,20,juce::Justification::centredLeft);
+    const auto packed=processor.displayedPattern.load();
+    for(int i=0;i<16;++i) { const auto effect=static_cast<beatflip::Effect>((packed>>(static_cast<unsigned>(i)*3u))&7u); g.setColour(i==processor.displayedStep.load()?lcd:lcd.withAlpha(.25f)); g.fillRect(592+i*27,106,20,12+static_cast<int>(effect)*5); }
+    g.setColour(lcd); g.drawText(processor.displayedPlaying.load()?"PLAY  /  LIVE KEYS READY":"STOP  /  LIVE KEYS READY",590,148,430,20,juce::Justification::centredLeft);
+    g.setColour(muted); g.setFont(juce::FontOptions{11.0f,juce::Font::bold}); g.drawText("GROUP",36,243,200,16,juce::Justification::centredLeft);
+    g.drawText("VELOCITY: TOP LOUD / BOTTOM SOFT",620,512,432,16,juce::Justification::centredLeft);
+    g.setColour(juce::Colour(0xffc8c9be)); g.fillRoundedRectangle(28,537,1044,304,4);
+    g.setColour(mint); g.setFont(juce::FontOptions{14.0f,juce::Font::bold});
+    const char* titles[]{"DRUM GRID","WAVETABLE SOUND","NOTE + CHORD PATTERN","FLIP ENGINE"}; g.drawText(titles[currentView],36,548,220,32,juce::Justification::centredLeft);
+    if(currentView==2) { g.setFont(juce::FontOptions{12.0f}); g.drawText("Select a step, then edit note, chord, velocity and gate. Live pads always play immediately.",36,795,1000,24,juce::Justification::centredLeft); }
+    g.setColour(muted); g.setFont(juce::FontOptions{11.0f}); g.drawText("8 DRUMS + 16-VOICE WAVETABLE + 16-STEP SEQUENCERS + FLIP    /    A-D: SOURCE PATTERN BANKS",36,850,1016,18,juce::Justification::centredLeft);
 }

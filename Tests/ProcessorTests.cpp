@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "PluginEditor.h"
 #include "FactoryPresets.h"
 #include "AllocationGuard.h"
 #include <juce_audio_utils/juce_audio_utils.h>
@@ -157,6 +158,28 @@ void synthMidiAndState()
     require(instrument.displayedVoices.load()==0,"Turning synth off releases its voices");
 }
 
+void performancePatternRecall()
+{
+    for(bool instrument:{false,true}) {
+        BeatFlipProcessor processor(instrument),restored(instrument);
+        processor.loadDrumGroove(2); processor.loadSynthPattern(2); processor.editSynthStep(3,"Note",65);
+        const auto original=processor.parameters.getRawParameterValue(BeatFlipProcessor::drumStepId(0,3))->load();
+        processor.selectPerformancePattern(1,99);
+        require(processor.parameters.getRawParameterValue(BeatFlipProcessor::synthStepId(3,"Note"))->load()==-1,"New bank patterns must be blank");
+        processor.cycleDrumStep(2,7); processor.editSynthStep(3,"Note",72);
+        processor.selectPerformancePattern(0,1);
+        require(processor.parameters.getRawParameterValue(BeatFlipProcessor::synthStepId(3,"Note"))->load()==65,"Switching group must preserve synth edits");
+        require(processor.parameters.getRawParameterValue(BeatFlipProcessor::drumStepId(0,3))->load()==original,"Switching group must preserve drum edits");
+        juce::MemoryBlock state; processor.getStateInformation(state); restored.setStateInformation(state.getData(),static_cast<int>(state.getSize()));
+        restored.selectPerformancePattern(1,99);
+        require(restored.parameters.getRawParameterValue(BeatFlipProcessor::synthStepId(3,"Note"))->load()==72,"Inactive synth bank patterns must survive project recall");
+        require(restored.parameters.getRawParameterValue(BeatFlipProcessor::drumStepId(2,7))->load()==1,"Inactive drum bank patterns must survive project recall");
+        restored.selectPerformancePattern(4,100);
+        require(restored.performanceGroup()==1 && restored.performancePattern()==99,"Invalid bank selections must have no effect");
+        juce::MemoryBlock second;restored.getStateInformation(second);processor.setStateInformation(second.getData(),static_cast<int>(second.getSize()));
+        require(processor.performanceGroup()==1 && processor.performancePattern()==99,"Selected group and pattern must survive recall");
+    }
+}
 void editorSnapshot()
 {
     BeatFlipProcessor processor(JucePlugin_IsSynth != 0);
@@ -168,9 +191,22 @@ void editorSnapshot()
     juce::MidiBuffer midi;
     for (int i = 0; i < 130; ++i) processor.processBlock (audio, midi);
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
-    require (editor->getWidth() == 1100 && editor->getHeight() == 1380, "The editor must have room for the expanded controls");
+    require (editor->getWidth() == 1100 && editor->getHeight() == 880, "The performance editor must fit the focused controls");
     for (auto* child : editor->getChildren())
         require (editor->getLocalBounds().contains (child->getBounds()), "Editor controls must stay within its bounds");
+    // Every focused workspace must render inside the same compact enclosure.
+    for(const auto* view:{"SOUND","PATTERN","FX / FLIP"}) {
+        for(auto* child:editor->getChildren()) if(auto* button=dynamic_cast<juce::TextButton*>(child))
+            if(button->getButtonText()==view && button->onClick) button->onClick();
+        for(auto* child:editor->getChildren()) if(child->isVisible())
+            require(editor->getLocalBounds().contains(child->getBounds()),"Every workspace must fit the enclosure");
+        const auto workspaceImage=editor->createComponentSnapshot(editor->getLocalBounds());
+        const auto filename=juce::String(view)=="SOUND"?"Dustbox-Sound.png":juce::String(view)=="PATTERN"?"Dustbox-Pattern.png":"Dustbox-FX.png";
+        auto workspaceStream=juce::File::getCurrentWorkingDirectory().getChildFile(filename).createOutputStream();
+        require(workspaceStream!=nullptr && juce::PNGImageFormat().writeImageToStream(workspaceImage,*workspaceStream),"Focused workspace must render");
+    }
+    for(auto* child:editor->getChildren()) if(auto* button=dynamic_cast<juce::TextButton*>(child))
+        if(button->getButtonText()=="DRUMS" && button->onClick) button->onClick();
     const auto image = editor->createComponentSnapshot (editor->getLocalBounds());
     auto stream = juce::File::getCurrentWorkingDirectory().getChildFile ("Beat-Flip-Editor.png").createOutputStream();
     require (stream != nullptr && juce::PNGImageFormat().writeImageToStream (image, *stream), "Editor preview must render successfully");
@@ -216,7 +252,8 @@ int main()
         { "Drum grid recall and realtime processing", drumStateAndProcessing },
         { "Polyphonic MIDI timing, state and panic", synthMidiAndState },
         { "Synth sequence recall and immediate live monitoring in both products", sequenceRecallAndLiveMonitoring },
-        { "Expanded editor layout and PNG rendering", editorSnapshot }
+        { "A-D pattern banks, inactive pattern recall and selection bounds", performancePatternRecall },
+        { "Focused performance editor layout and PNG rendering", editorSnapshot }
     };
     int failures = 0;
     for (const auto& test : tests)

@@ -11,7 +11,10 @@ class BeatFlipProcessor final : public juce::AudioProcessor
 public:
     explicit BeatFlipProcessor(bool instrument = false);
     bool isInstrument() const noexcept { return instrumentMode; }
-    void queueSynthNote(int note, bool down) noexcept;
+    void queueSynthNote(int note, bool down, float velocity = .8f) noexcept;
+    void selectPerformancePattern(int group, int pattern);
+    int performanceGroup() const noexcept { return selectedGroup.load(); }
+    int performancePattern() const noexcept { return selectedPattern.load(); }
     void panicSynth() noexcept { panicRequested.store(true); }
     std::atomic<int> displayedVoices { 0 };
     std::atomic<int> displayedSynthStep { -1 };
@@ -40,7 +43,7 @@ public:
 
     void loadDrumGroove (int index);
     void cycleDrumStep (int track, int step);
-    void auditionDrum (int track);
+    void auditionDrum (int track, float velocity = 1.0f);
     static juce::String drumStepId (int track, int step) { return "drum" + juce::String(track) + "step" + juce::String(step); }
     std::atomic<int> displayedDrumStep { -1 };
     void flip(); // Called only by the editor/message thread.
@@ -76,7 +79,7 @@ private:
     bool previousSequencePlaying = false;
     double freeTransportPpq = 0;
     double processorRate = 48000;
-    struct GuiNote { int note = 60; bool down = false; };
+    struct GuiNote { int note = 60; bool down = false; float velocity = .8f; };
     std::array<GuiNote,256> guiNotes {};
     std::atomic<unsigned> guiWrite { 0 }, guiRead { 0 };
     std::atomic<bool> panicRequested { false };
@@ -89,6 +92,11 @@ private:
     std::atomic<float>* grooveSwingParameter = nullptr;
     std::atomic<float>* dustParameter = nullptr;
     std::atomic<unsigned> auditionMask { 0 };
+    std::array<std::atomic<float>,8> auditionVelocities {};
+    juce::CriticalSection bankLock; // Never acquired by processBlock.
+    juce::ValueTree performanceBanks { "PerformanceBanks" };
+    std::atomic<int> selectedGroup { 0 }, selectedPattern { 1 };
+    void capturePerformancePattern();
     bool previousDrumSource = false, previousDrumPlaying = false;
     std::atomic<float>* seedParameter = nullptr;
     std::atomic<float>* amountParameter = nullptr;

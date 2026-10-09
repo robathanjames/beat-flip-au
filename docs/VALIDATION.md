@@ -1,25 +1,30 @@
-# Validation status — 0.5.0
+# Validation status — 0.6.0
 
-[Build run #33](https://github.com/robathanjames/beat-flip-au/actions/runs/37799895924) passed on October 8, 2026. It tested source commit `2ddcdecbf7ccde69e88b9232b471f2a758cc8898`, which contains the live synth playback fix and dedicated synth sequencer. Later commits update documentation and screenshots only.
+[Build run #40](https://github.com/robathanjames/beat-flip-au/actions/runs/37956928185) passed on October 9, 2026. It tested source commit `35e596a86f0899cb39a878375a25ffeaef02ce36`. Later release commits update screenshots/documentation and replace the native footer's non-ASCII dash with an ASCII hyphen; audio behavior is unchanged.
 
 ## Verified native behavior
 
-- The universal Apple Silicon + Intel build produced both effect/instrument AUs and standalone apps.
-- All six macOS test suites passed: FLIP engine, drums, drum MIDI export, wavetable synth, synth sequencing, and processor state/editor integration.
-- Synth checks cover multiple notes/chords within one bar, rest/gate/swing timing, immediate live notes at full-wet FLIP, stop/seek/panic, project recall and legacy defaults, block-size invariance, and allocation-free audio processing.
+- Both universal Apple Silicon + Intel effect/instrument AUs and standalone apps built successfully.
+- All six macOS suites passed: FLIP engine, drums, drum MIDI export, wavetable synth, synth sequencing, and processor state/editor integration.
+- New checks cover velocity-scaled drum auditions, independent A–D / 99-slot drum and synth patterns, inactive-slot state recall, selected-bank recall, invalid indices, legacy projects, and the compact editor bounds.
+- Existing immediate live notes, chord/rest/gate/swing sequencing, full-wet monitoring, stop/seek/panic, allocation-free processing and block-size behavior remain covered.
 - Apple's validator reported **AU VALIDATION SUCCEEDED** for both `aufx BtFp Rbjm` (Dustbox) and `aumu DbSy Rbjm` (Dustbox Synth).
-- Linux portable tests and the workflow's FLIP AddressSanitizer/UndefinedBehaviorSanitizer check passed. Local sanitizer checks also passed for the new synth sequencer; local leak detection was disabled under ptrace.
-- The native editor PNG was rendered by the processor test runner and visually reviewed. The drum/synth sequencers, step editor and keyboard fit inside the 1100 × 1380 layout. See the [current native and web screenshots](screenshots/README.md).
+- Linux portable tests and the FLIP AddressSanitizer/UndefinedBehaviorSanitizer check passed. Local drum sanitizer checks also passed with leak detection disabled under ptrace.
+- All four 1100 × 880 editor views were rendered and visually reviewed. Their controls fit within the calculator-style enclosure. The archived native snapshots precede the footer hyphen correction.
 
-The run's **Dustbox-macOS-development-build** artifact contains all four AU/standalone ZIPs. **Beat-Flip-editor-preview** contains the native screenshot.
+The run's **Dustbox-macOS-development-build** artifact contains four AU/standalone ZIPs. **Beat-Flip-editor-preview** contains the four native views. [Current screenshots](screenshots/README.md).
 
 ## Verified web behavior
 
-Nine web engine/static checks passed. Real desktop and mobile browser checks passed for three immediate live notes and note-offs within the same first bar at 100% wet FLIP, held live notes through STOP, PANIC, programmed synth chords, note/chord editing, and responsive layout. The tested synth-sequencer update is published in the [web workstation](https://beat-flip-web.tj25h4ksw8.chatgpt.site).
+Web engine/static checks and independent bank/velocity checks passed. Actual Chromium/Web Audio tests passed for immediate live notes and releases at full-wet FLIP, notes held through STOP, PANIC, programmed chords and edits, twelve pads, pattern recall, fader control and destination pinning, held keyboard pads, and desktop/mobile layout. A regression guard bounds the fader rail height. Desktop, Sound and mobile screenshots were visually reviewed for readable contrast and compact layout.
 
-## Remaining host checks
+The tested update is published in the [web workstation](https://beat-flip-web.tj25h4ksw8.chatgpt.site). Native banks persist in host state; browser banks last for the page session.
 
-Manual playback, hardware MIDI, automation, and project recall in Logic on a physical Apple Silicon Mac remain unverified. The universal build and Intel-runner AU validation do not replace that host check. Development artifacts have no Developer ID signature, notarization, or installer.
+## Scope and remaining host checks
+
+This release implements the performance interface and source-pattern workflow. The sampler-engine roadmap (sample import/chopping, converter modes, expanded sample voices, multi-output buses, motion recording, punch-in FX, chains, stem drag export and controller templates) is not yet implemented.
+
+Manual playback, hardware MIDI, automation and project recall in Logic on a physical Apple Silicon Mac remain unverified. Development artifacts have no Developer ID signature, notarization or installer.
 
 ## Earlier validation records
 
@@ -67,4 +72,28 @@ Actual playback, editor interaction, automation, and project recall in Logic sti
 10. Automate the controls and bounce the track. Confirm that the result matches playback.
 
 Development artifacts have no Developer ID signature, notarization, or installer.
+
+
+### Version 0.5.0 validation
+
+[Build run #33](https://github.com/robathanjames/beat-flip-au/actions/runs/37799895924) passed on October 8, 2026. It tested source commit `2ddcdecbf7ccde69e88b9232b471f2a758cc8898`, which contains the live synth playback fix and dedicated synth sequencer. Later commits update documentation and screenshots only.
+
+## Verified native behavior
+
+- The universal Apple Silicon + Intel build produced both effect/instrument AUs and standalone apps.
+- All six macOS test suites passed: FLIP engine, drums, drum MIDI export, wavetable synth, synth sequencing, and processor state/editor integration.
+- Synth checks cover multiple notes/chords within one bar, rest/gate/swing timing, immediate live notes at full-wet FLIP, stop/seek/panic, project recall and legacy defaults, block-size invariance, and allocation-free audio processing.
+- Apple's validator reported **AU VALIDATION SUCCEEDED** for both `aufx BtFp Rbjm` (Dustbox) and `aumu DbSy Rbjm` (Dustbox Synth).
+- Linux portable tests and the workflow's FLIP AddressSanitizer/UndefinedBehaviorSanitizer check passed. Local sanitizer checks also passed for the new synth sequencer; local leak detection was disabled under ptrace.
+- The native editor PNG was rendered by the processor test runner and visually reviewed. The drum/synth sequencers, step editor and keyboard fit inside the 1100 × 1380 layout. See the [current native and web screenshots](screenshots/README.md).
+
+The run's **Dustbox-macOS-development-build** artifact contains all four AU/standalone ZIPs. **Beat-Flip-editor-preview** contains the native screenshot.
+
+## Verified web behavior
+
+Nine web engine/static checks passed. Real desktop and mobile browser checks passed for three immediate live notes and note-offs within the same first bar at 100% wet FLIP, held live notes through STOP, PANIC, programmed synth chords, note/chord editing, and responsive layout. The tested synth-sequencer update is published in the [web workstation](https://beat-flip-web.tj25h4ksw8.chatgpt.site).
+
+## Remaining host checks
+
+Manual playback, hardware MIDI, automation, and project recall in Logic on a physical Apple Silicon Mac remain unverified. The universal build and Intel-runner AU validation do not replace that host check. Development artifacts have no Developer ID signature, notarization, or installer.
 
