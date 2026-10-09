@@ -352,6 +352,7 @@ BeatFlipEditor::BeatFlipEditor (BeatFlipProcessor& owner) : AudioProcessorEditor
     for(int i=1;i<=99;++i) patternNumber.addItem("PATTERN "+juce::String(i).paddedLeft('0',2),i);
     patternNumber.setSelectedId(processor.performancePattern(),juce::dontSendNotification);
     patternNumber.onChange=[this]{processor.selectPerformancePattern(processor.performanceGroup(),patternNumber.getSelectedId());timerCallback();};
+    padBank.setName("Pad sound bank"); patternNumber.setName("Pattern number"); faderAssignment.setName("Fader assignment"); masterFader.setName("Master performance fader");
     masterFader.setSliderStyle(juce::Slider::LinearVertical); masterFader.setTextBoxStyle(juce::Slider::NoTextBox,false,0,0);
     masterFader.setColour(juce::Slider::trackColourId,coral); faderValue.setColour(juce::Label::textColourId,mint); faderValue.setJustificationType(juce::Justification::centred);
     faderAssignment.addItemList({"PITCH","FILTER","SYNTH LEVEL","DUST","FLIP MIX","WAVE MORPH"},1);
@@ -375,7 +376,8 @@ BeatFlipEditor::BeatFlipEditor (BeatFlipProcessor& owner) : AudioProcessorEditor
             }
         };
         pad.released=[this,i]{if(heldPadNotes[i]>=0) processor.queueSynthNote(heldPadNotes[i],false);heldPadNotes[i]=-1;};
-        pad.onClick=[this,i]{if(!performancePads[i].isMouseOver()) {performancePads[i].pressed(.8f);performancePads[i].released();}};
+        pad.onClick=[this,i]{if(!performancePads[i].isMouseOver()) {performancePads[i].pressed(.8f);
+            juce::Timer::callAfterDelay(100,[safe=juce::Component::SafePointer<BeatFlipEditor>(this),i]{if(safe!=nullptr) safe->performancePads[i].released();});}};
     }
     updatePerformancePads(); setView(0);
     timerCallback();
@@ -498,6 +500,7 @@ void BeatFlipEditor::resized()
     enabledButton.setBounds(216,450,114,28); synthOn.setBounds(338,450,114,28);
     amount.setBounds(216,350,110,78); amountLabel.setBounds(216,429,110,18);
     tempo.setBounds(344,350,110,78); tempoLabel.setBounds(344,429,110,18);
+    output.setSliderStyle(juce::Slider::LinearHorizontal); output.setTextBoxStyle(juce::Slider::TextBoxRight,false,50,22);
     output.setBounds(344,477,110,30); outputLabel.setBounds(216,483,110,18);
     faderAssignment.setBounds(466,250,136,32); masterFader.setBounds(498,291,76,188); faderValue.setBounds(466,480,136,26);
     for(int i=0;i<12;++i) performancePads[i].setBounds(620+(i%3)*146,250+(i/3)*65,140,59);
@@ -532,7 +535,7 @@ void BeatFlipEditor::paint(juce::Graphics& g)
     g.setFont(juce::FontOptions{11.0f,juce::Font::bold}); g.drawText("RHYTHM / WAVE / FLIP",264,33,260,20,juce::Justification::centredLeft);
     g.setFont(juce::FontOptions{24.0f,juce::Font::bold}); g.drawText("DB-12",926,22,126,35,juce::Justification::centredRight);
     g.setColour(panel); g.fillRoundedRectangle(36,76,1016,110,5); g.setColour(juce::Colour(0xff111817)); g.fillRoundedRectangle(43,83,1002,96,3);
-    const auto lcd=juce::Colour(0xffffad68); g.setColour(lcd); g.setFont(juce::FontOptions{42.0f,juce::Font::bold});
+    const auto lcd=juce::Colour(0xffffad68); g.setColour(lcd); g.setFont(juce::FontOptions{42.0f,juce::Font::bold}.withName(juce::Font::getDefaultMonospacedFontName()));
     const auto group=juce::String::charToString(static_cast<juce::juce_wchar>('A'+processor.performanceGroup()));
     g.drawText(group+"."+juce::String(processor.performancePattern()).paddedLeft('0',2),62,93,230,50,juce::Justification::centredLeft);
     g.drawText(juce::String(processor.displayedBpm.load(),1),310,93,240,50,juce::Justification::centredLeft);
