@@ -59,7 +59,7 @@ void DrumMachine::prepare (double rate) {
 void DrumMachine::reset() noexcept {
     cursors.fill(-1); gains.fill(0); step=-1; freePpq=expectedPpq=0; low=held=0; holdCounter=0; wasPlaying=false;
 }
-void DrumMachine::process(float* const* output,int channels,int frames,const DrumSettings& s,const Transport& t,unsigned audition) noexcept {
+void DrumMachine::process(float* const* output,int channels,int frames,const DrumSettings& s,const Transport& t,unsigned audition,const std::array<std::atomic<float>,8>* velocity) noexcept {
     const bool playing=s.playing && t.playing;
     const double bpm=std::isfinite(t.bpm)?std::clamp(t.bpm,20.0,400.0):120;
     const double delta=bpm/(60*sampleRate);
@@ -71,7 +71,8 @@ void DrumMachine::process(float* const* output,int channels,int frames,const Dru
         cursors.fill(-1); step=-1; low=held=0;
     }
     if(!playing&&wasPlaying) { cursors.fill(-1); step=-1; low=held=0; }
-    for(int tr=0;tr<8;++tr) if(audition & (1u<<tr)) { cursors[tr]=0; gains[tr]=s.levels[tr]; }
+    for(int tr=0;tr<8;++tr) if(audition & (1u<<tr)) { cursors[tr]=0; gains[tr]=s.levels[tr]*(velocity?std::clamp((*velocity)[tr].load(),.01f,1.0f):1.0f);
+        if(tr==3) cursors[4]=-1; }
     const auto dust=std::clamp(s.dust,0.0f,1.0f);
     const auto alpha=static_cast<float>(1-std::exp(-2*pi*(14000-dust*10500)/sampleRate));
     const auto quant=std::pow(2.0f,15-std::round(dust*7)); const int hold=1+static_cast<int>(dust*3);

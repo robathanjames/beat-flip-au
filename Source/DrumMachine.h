@@ -1,6 +1,7 @@
 #pragma once
 #include "GlitchEngine.h"
 #include <array>
+#include <atomic>
 #include <vector>
 namespace beatflip {
 constexpr int drumTracks = 8;
@@ -18,7 +19,7 @@ class DrumMachine {
 public:
     void prepare (double rate);
     void reset() noexcept;
-    void process (float* const*, int channels, int frames, const DrumSettings&, const Transport&, unsigned audition = 0) noexcept;
+    void process (float* const*, int channels, int frames, const DrumSettings&, const Transport&, unsigned audition = 0, const std::array<std::atomic<float>,8>* velocity = nullptr) noexcept;
     int currentStep() const noexcept { return step; }
 private:
     std::array<std::vector<float>, 8> bank;

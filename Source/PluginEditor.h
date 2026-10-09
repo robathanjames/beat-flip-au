@@ -13,6 +13,20 @@ public:
     void drawButtonText (juce::Graphics&, juce::TextButton&, bool, bool) override;
 };
 
+// A pad owns its note until release, even if a view/bank changes during the gesture.
+class PerformancePad final : public juce::TextButton
+{
+public:
+    bool keyboardHeld = false;
+    bool keyPressed(const juce::KeyPress& key) override { if(key.getKeyCode()!=juce::KeyPress::spaceKey && key.getKeyCode()!=juce::KeyPress::returnKey) return false; if(!keyboardHeld) { keyboardHeld=true; if(pressed) pressed(.8f); } return true; }
+    bool keyStateChanged(bool) override { if(keyboardHeld && !juce::KeyPress::isKeyCurrentlyDown(juce::KeyPress::spaceKey) && !juce::KeyPress::isKeyCurrentlyDown(juce::KeyPress::returnKey)) { keyboardHeld=false; if(released) released(); return true; } return false; }
+    void focusLost(FocusChangeType) override { if(keyboardHeld) { keyboardHeld=false; if(released) released(); } }
+    std::function<void(float)> pressed;
+    std::function<void()> released;
+    void mouseDown(const juce::MouseEvent& e) override { juce::TextButton::mouseDown(e); if(pressed) pressed(juce::jlimit(.15f,1.0f,1.0f-e.position.y/static_cast<float>(getHeight())*.85f)); }
+    void mouseUp(const juce::MouseEvent& e) override { juce::TextButton::mouseUp(e); if(released) released(); }
+};
+
 class BeatFlipEditor final : public juce::AudioProcessorEditor, private juce::Timer
 {
 public:
@@ -23,6 +37,19 @@ public:
 
 private:
     void timerCallback() override;
+    void updatePerformancePads();
+    void setView(int);
+    std::array<PerformancePad,12> performancePads;
+    std::array<juce::TextButton,4> groupButtons, viewButtons;
+    std::array<int,12> heldPadNotes;
+    std::array<juce::uint32,12> padFlashUntil {};
+    juce::ComboBox padBank, patternNumber, faderAssignment;
+    juce::Slider masterFader;
+    juce::Label faderValue;
+    std::vector<juce::Component*> drumView, soundView, sequenceView, fxView;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> faderAttachment;
+    int currentView = 0;
+
     void exportMidi();
     std::unique_ptr<juce::FileChooser> midiChooser;
     juce::TextButton exportMidiButton { "EXPORT MIDI" };

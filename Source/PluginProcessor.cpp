@@ -209,7 +209,7 @@ void BeatFlipProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
             drumSettings.muted[tr]=drumMutes[tr]->load (std::memory_order_relaxed)>=.5f;
             for (int st=0;st<16;++st) drumSettings.pattern[tr][st]=static_cast<int>(drumSteps[tr][st]->load (std::memory_order_relaxed));
         }
-        drums.process(buffer.getArrayOfWritePointers(), buffer.getNumChannels(), buffer.getNumSamples(), drumSettings, transport, auditionMask.exchange(0));
+        drums.process(buffer.getArrayOfWritePointers(), buffer.getNumChannels(), buffer.getNumSamples(), drumSettings, transport, auditionMask.exchange(0), &auditionVelocities);
         displayedDrumStep.store(drums.currentStep(), std::memory_order_relaxed);
         transport.playing = drumPlaying;
         if (!drumPlaying) settings.enabled=false;
@@ -256,7 +256,7 @@ void BeatFlipProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
     const auto write=guiWrite.load(std::memory_order_acquire);
     while(read!=write) {
         const auto event=guiNotes[read];
-        if(synthEnabled) { if(event.down) synth.noteOn(1,event.note,.8f); else synth.noteOff(1,event.note); }
+        if(synthEnabled) { if(event.down) synth.noteOn(1,event.note,event.velocity); else synth.noteOff(1,event.note); }
         read=(read+1)%static_cast<unsigned>(guiNotes.size());
     }
     guiRead.store(read,std::memory_order_release);
@@ -300,13 +300,13 @@ void BeatFlipProcessor::loadSynthPattern(int preset)
     if(preset>0) { setParameterValue("synthEnabled",1); setParameterValue("synthSeqPlay",1); }
 }
 
-void BeatFlipProcessor::queueSynthNote(int note,bool down) noexcept
+void BeatFlipProcessor::queueSynthNote(int note,bool down,float velocity) noexcept
 {
     if(note<0 || note>127) return;
     const auto write=guiWrite.load(std::memory_order_relaxed);
     const auto next=(write+1)%static_cast<unsigned>(guiNotes.size());
     if(next==guiRead.load(std::memory_order_acquire)) { panicRequested.store(true); return; }
-    guiNotes[write]={note,down}; guiWrite.store(next,std::memory_order_release);
+    guiNotes[write]={note,down,juce::jlimit(.01f,1.0f,velocity)}; guiWrite.store(next,std::memory_order_release);
 }
 void BeatFlipProcessor::handleSynthMidi(const juce::MidiMessage& message) noexcept
 {
@@ -335,9 +335,9 @@ void BeatFlipProcessor::cycleDrumStep (int track,int step)
     const int current=static_cast<int>(drumSteps[track][step]->load());
     setParameterValue(drumStepId(track,step).toRawUTF8(), static_cast<float>((current+1)%3));
 }
-void BeatFlipProcessor::auditionDrum (int track)
+void BeatFlipProcessor::auditionDrum (int track, float velocity)
 {
-    if(track>=0&&track<8) auditionMask.fetch_or(1u<<track);
+    if(track>=0&&track<8) { auditionVelocities[track].store(juce::jlimit(.01f,1.0f,velocity)); auditionMask.fetch_or(1u<<track); }
 }
 void BeatFlipProcessor::flip()
 {
@@ -407,9 +407,48 @@ juce::AudioProcessorEditor* BeatFlipProcessor::createEditor()
     return new BeatFlipEditor (*this);
 }
 
+// Pattern banks store source sequences only: sound design, FLIP and automation stay global.
+// These methods run on the message/state thread. The audio callback reads APVTS atomics.
+void BeatFlipProcessor::capturePerformancePattern()
+{
+    const auto key=juce::String(selectedGroup.load())+"/"+juce::String(selectedPattern.load());
+    auto slot=performanceBanks.getChildWithProperty("key",key);
+    if(!slot.isValid()) { slot=juce::ValueTree("Pattern"); slot.setProperty("key",key,nullptr); performanceBanks.appendChild(slot,nullptr); }
+    for(int tr=0;tr<8;++tr) for(int st=0;st<16;++st) {
+        const auto id=drumStepId(tr,st); slot.setProperty(id,parameters.getRawParameterValue(id)->load(),nullptr);
+    }
+    for(int st=0;st<16;++st) for(const auto* field:{"Note","Chord","Velocity","Gate"}) {
+        const auto id=synthStepId(st,field); slot.setProperty(id,parameters.getRawParameterValue(id)->load(),nullptr);
+    }
+    for(const auto* id:{"drumPlay","synthSeqPlay"}) slot.setProperty(id,parameters.getRawParameterValue(id)->load(),nullptr);
+    performanceBanks.setProperty("group",selectedGroup.load(),nullptr);
+    performanceBanks.setProperty("pattern",selectedPattern.load(),nullptr);
+}
+void BeatFlipProcessor::selectPerformancePattern(int group,int pattern)
+{
+    if(group<0 || group>3 || pattern<1 || pattern>99) return;
+    const juce::ScopedLock lock(bankLock);
+    if(group==selectedGroup.load() && pattern==selectedPattern.load()) return;
+    capturePerformancePattern(); selectedGroup.store(group); selectedPattern.store(pattern);
+    const auto slot=performanceBanks.getChildWithProperty("key",juce::String(group)+"/"+juce::String(pattern));
+    for(int tr=0;tr<8;++tr) for(int st=0;st<16;++st) {
+        const auto id=drumStepId(tr,st); setParameterValue(id.toRawUTF8(),static_cast<float>(slot.getProperty(id,0)));
+    }
+    for(int st=0;st<16;++st) for(const auto* field:{"Note","Chord","Velocity","Gate"}) {
+        const auto id=synthStepId(st,field);
+        const float fallback=juce::String(field)=="Note"?-1.0f:juce::String(field)=="Velocity"?.8f:juce::String(field)=="Gate"?.65f:0.0f;
+        setParameterValue(id.toRawUTF8(),static_cast<float>(slot.getProperty(id,fallback)));
+    }
+    setParameterValue("drumPlay",static_cast<float>(slot.getProperty("drumPlay",1)));
+    setParameterValue("synthSeqPlay",static_cast<float>(slot.getProperty("synthSeqPlay",0)));
+}
+
 void BeatFlipProcessor::getStateInformation (juce::MemoryBlock& destination)
 {
-    const auto state = parameters.copyState();
+    const juce::ScopedLock lock(bankLock);
+    capturePerformancePattern();
+    auto state = parameters.copyState();
+    state.appendChild(performanceBanks.createCopy(), nullptr);
     if (const auto xml = state.createXml()) copyXmlToBinary (*xml, destination);
 }
 
@@ -430,6 +469,12 @@ void BeatFlipProcessor::setStateInformation (const void* data, int size)
                         child.setProperty ("value", ranged->convertFrom0to1 (ranged->getDefaultValue()), nullptr);
                         state.appendChild (child, nullptr);
                     }
+            const juce::ScopedLock lock(bankLock);
+            auto banks = state.getChildWithName("PerformanceBanks");
+            performanceBanks = banks.isValid() ? banks.createCopy() : juce::ValueTree("PerformanceBanks");
+            selectedGroup.store(juce::jlimit(0,3,static_cast<int>(performanceBanks.getProperty("group",0))));
+            selectedPattern.store(juce::jlimit(1,99,static_cast<int>(performanceBanks.getProperty("pattern",1))));
+            if (banks.isValid()) state.removeChild(banks,nullptr);
             parameters.replaceState (state);
         }
 }
