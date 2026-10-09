@@ -29,6 +29,10 @@ int main(){try {
         require(a==original,"Sequencer must be independent of audio block size");
         s.playing=false;d.process(out,2,n,s,t);require(std::all_of(a.begin(),a.end(),[](float x){return x==0;}),"Stop must immediately silence drums");
         d.process(out,2,n,s,t,1);require(std::any_of(a.begin(),a.end(),[](float x){return x!=0;}),"Audition must work while stopped");
+        std::array<std::atomic<float>,8> velocity {}; velocity[0].store(.2f);
+        d.reset();d.process(out,2,n,s,t,1,&velocity); double soft=0;for(auto x:a)soft+=x*x;
+        velocity[0].store(1); d.reset();d.process(out,2,n,s,t,1,&velocity);double hard=0;for(auto x:a)hard+=x*x;
+        require(hard>soft*2,"Audition velocity must produce a meaningful dynamic range");
         s.playing=true;d.reset();allocationGuard::start();d.process(out,2,n,s,t);const auto allocations=allocationGuard::stop();require(allocations==0,"Drum callback must not allocate");
         s.pattern={};s.pattern[0][1]=2;s.swing=.6f;s.dust=0;d.reset();d.process(out,2,n,s,t);
         auto first=std::find_if(a.begin(),a.end(),[](float x){return x!=0;});
